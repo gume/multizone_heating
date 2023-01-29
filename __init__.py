@@ -10,11 +10,10 @@ from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
-from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED, CONF_TYPE
+from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
+from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.util import slugify
-
-from homeassistant.helpers import device_registry as dr
 
 from homeassistant.helpers.update_coordinator import (
     CoordinatorEntity,
@@ -22,14 +21,17 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
-from .multizones import Zone
+from .multizones import Zone, ZoneMaster
 
 from .const import (
     DOMAIN,
-    CONF_IMPORT, CONF_MAIN, CONF_ZONE,
-    CONF_ZONES, CONF_PUMPS,
-    CONFIG_SCHEMA
+    CONF_IMPORT,
+    CONF_ZONES,
+    CONFIG_SCHEMA,
 )
+
+#PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN ]
+PLATFORMS = [ SWITCH_DOMAIN ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -55,48 +57,27 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return result
 
     # Add the main zone controller                
-    datamz = { x: config[x] for x in (CONF_PUMPS, CONF_ENABLED) }
-    datamz[CONF_NAME] = CONF_MAIN
-    datamz[CONF_TYPE] = CONF_MAIN
-    datamz = order_dict(datamz)
-
-    _LOGGER.debug(str(datamz))
-    iid =  hashlib.md5(str(datamz).encode('utf-8')).hexdigest()
-    _LOGGER.debug(iid)
+    iid =  hashlib.md5(str(config).encode('utf-8')).hexdigest()
     if not imported(iid):
-        datamz[CONF_IMPORT] = iid
+        config[CONF_IMPORT] = iid
         hass.async_create_task(
             hass.config_entries.flow.async_init(
                 DOMAIN,
                 context={"source": SOURCE_IMPORT},
-                data=datamz
+                data=config
             )
         )
-
-    for zone in config[CONF_ZONES]:
-        zone[CONF_TYPE] = CONF_ZONE
-        zone = order_dict(zone)
-        iid =  hashlib.md5(str(zone).encode('utf-8')).hexdigest()
-        if not imported(iid):
-            zone[CONF_IMPORT] = iid
-            hass.async_create_task(
-                hass.config_entries.flow.async_init(
-                    DOMAIN,
-                    context={"source": SOURCE_IMPORT},
-                    data=zone,
-                )
-            )
     
     #hass.states.async_set("switch.world", "On")
-
     return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
-    _LOGGER.debug("Setup Entry")
-    _LOGGER.debug(entry.data)
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = Zone(hass, entry.data["name"])
+    zonemaster = ZoneMaster(hass, entry.data)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
+
+    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
     return True
 

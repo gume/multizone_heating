@@ -13,9 +13,8 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback, ) -> None:
-    _LOGGER.debug("switch: _async_setup_entry")
     zonemaster = hass.data[DOMAIN][config_entry.entry_id]
-    switches = zonemaster.switches
+    sensors = zonemaster.sensors
     for zone in zonemaster.zones:
-        switches += zone.switches
-    async_add_entities(switches)
+        sensors += zone.sensors
+    async_add_entities(sensors)
