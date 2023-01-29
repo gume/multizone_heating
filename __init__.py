@@ -2,13 +2,15 @@ import asyncio
 from datetime import timedelta
 import logging
 import voluptuous as vol
+import hashlib
 
 
-from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import Config, HomeAssistant
+from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
+from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
-from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID
+from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED, CONF_TYPE
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.util import slugify
 
@@ -20,101 +22,98 @@ from homeassistant.helpers.update_coordinator import (
     UpdateFailed,
 )
 
+from .multizones import Zone
 
 from .const import (
     DOMAIN,
-    STARTUP_MESSAGE,
-    CONF_ZONES, CONF_SUBZONES, CONF_PUMPS,
-    CONF_SENSOR, CONF_SWITCH,
-    CONF_TRVS, CONF_CONTROL,
-    CONF_TARGET_TEMP, CONF_AWAY_TEMP, CONF_VACATION_TEMP, CONF_NIGHT_TEMP,
-    CONF_KEEP_ALIVE, CONF_KEEP_ACTIVE,
-    MANUFACTURER, NAME, VERSION
+    CONF_IMPORT, CONF_MAIN, CONF_ZONE,
+    CONF_ZONES, CONF_PUMPS,
+    CONFIG_SCHEMA
 )
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
-CONFIG_TRVS = vol.Schema({
-    vol.Required(CONF_SWITCH): cv.entity_id,
-})
+    _LOGGER.debug("Config from YAML")
+    if DOMAIN not in config:
+        return True
+    _LOGGER.debug(config[DOMAIN])
+    config = config[DOMAIN]
 
-CONFIG_SUBZONE = vol.Schema({
-    vol.Required(CONF_NAME): cv.string,
-    vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Optional(CONF_SENSOR): cv.entity_id,
-    vol.Optional(CONF_TRVS): vol.All([CONFIG_TRVS]),
-    vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_CONTROL): cv.entity_id,
-})
+    """ Tell whether this config is already available in config_entries """
+    def order_dict(dictionary):
+        return {k: order_dict(v) if isinstance(v, dict) else v for k, v in sorted(dictionary.items())}
 
-CONFIG_TARGET_SWITCH = vol.Schema({
-    vol.Required(CONF_ENTITY_ID): cv.entity_domain([SWITCH_DOMAIN]),
-    vol.Optional(CONF_KEEP_ALIVE, default=None): vol.Any(None, cv.positive_time_period, cv.positive_timedelta),
-    vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.positive_time_period, cv.positive_timedelta),
-})
+    def imported(iid):
+        result = False
+        for ce in hass.config_entries.async_entries(DOMAIN):
+            if CONF_IMPORT in ce.data:
+                if ce.data[CONF_IMPORT] == iid:
+                    result = True
+                    break
+        return result
 
-CONFIG_ZONE = vol.Schema({
-    vol.Required(CONF_NAME): cv.string,
-    vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
-    vol.Required(CONF_SUBZONES): vol.All([CONFIG_SUBZONE]),
-})
+    # Add the main zone controller                
+    datamz = { x: config[x] for x in (CONF_PUMPS, CONF_ENABLED) }
+    datamz[CONF_NAME] = CONF_MAIN
+    datamz[CONF_TYPE] = CONF_MAIN
+    datamz = order_dict(datamz)
 
-CONFIG_SCHEMA = vol.Schema({
-        DOMAIN: vol.Schema({
-            vol.Required(CONF_ZONES): vol.All([CONFIG_ZONE]),
-        })
-    },
-    extra = vol.ALLOW_EXTRA,
-)
+    _LOGGER.debug(str(datamz))
+    iid =  hashlib.md5(str(datamz).encode('utf-8')).hexdigest()
+    _LOGGER.debug(iid)
+    if not imported(iid):
+        datamz[CONF_IMPORT] = iid
+        hass.async_create_task(
+            hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": SOURCE_IMPORT},
+                data=datamz
+            )
+        )
 
-async def async_setup(hass: HomeAssistant, config: Config) -> bool:
-    hass.states.async_set("multizone_heating.world", "TEST")
-    _LOGGER.info(config[DOMAIN])
-    for zone in config[DOMAIN].get(CONF_ZONES):
-        _LOGGER.info(zone)
-        hass.states.async_set("multizone_heating." + slugify(zone[CONF_NAME]), "ok")
+    for zone in config[CONF_ZONES]:
+        zone[CONF_TYPE] = CONF_ZONE
+        zone = order_dict(zone)
+        iid =  hashlib.md5(str(zone).encode('utf-8')).hexdigest()
+        if not imported(iid):
+            zone[CONF_IMPORT] = iid
+            hass.async_create_task(
+                hass.config_entries.flow.async_init(
+                    DOMAIN,
+                    context={"source": SOURCE_IMPORT},
+                    data=zone,
+                )
+            )
     
-    ces = hass.config_entries.async_entries()
-    for ce in ces:
-        _LOGGER.info(str(ce) + ", " + ce.domain + ", " + ce.entry_id)
-    
-    entry = ConfigEntry(
-        version=1,
-        domain=DOMAIN,
-        source='user',
-        title='Add zones',
-        data='{}',
-        entry_id = "eeb6ea8ffb3ef6fcf362aafc95ca2b7f",
-    )
-    #entry.entry_id = NAME
-    hass.config_entries.async_add(entry)
-    _LOGGER.info(entry.entry_id)
-
-    if hass.data.get(DOMAIN) is None:
-        hass.data.setdefault(DOMAIN, {})
-        _LOGGER.info(STARTUP_MESSAGE)
-
-    coordinator = MZHCoordinator(hass)
-    await coordinator.async_refresh()
-    hass.data[DOMAIN][entry.entry_id] = coordinator
-
-    entry.unique_id = "valami_switch"
-    coordinator.platforms.append("switch")
-    hass.async_add_job(
-        hass.config_entries.async_forward_entry_setup(entry, "switch")
-    )
+    #hass.states.async_set("switch.world", "On")
 
     return True
 
+
+async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+    _LOGGER.debug("Setup Entry")
+    _LOGGER.debug(entry.data)
+    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = Zone(hass, entry.data["name"])
+
+    return True
+
+async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+
+    _LOGGER.debug("Unload entry")
+    _LOGGER.debug(entry)
+    # This is called when an entry/configured device is to be removed. The class
+    # needs to unload itself, and remove callbacks. See the classes for further
+    # details
+
+    #unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+    unload_ok = True
+    if unload_ok:
+        hass.data[DOMAIN].pop(entry.entry_id)
+
+    return unload_ok
 
 class MZHCoordinator(DataUpdateCoordinator):
 
@@ -132,3 +131,4 @@ class MZHCoordinator(DataUpdateCoordinator):
 
     async def _async_update_data(self):
         pass
+
