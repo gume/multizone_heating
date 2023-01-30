@@ -1,4 +1,4 @@
-"""Sensor platform for multizone_heating."""
+"""Binary sensor platform for multizone_heating."""
 
 import logging
 
@@ -14,7 +14,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback, ) -> None:
     zonemaster = hass.data[DOMAIN][config_entry.entry_id]
-    sensors = zonemaster.sensors
+    binary_sensors = zonemaster.binary_sensors
     for zone in zonemaster.zones:
-        sensors += zone.sensors
-    async_add_entities(sensors)
+        binary_sensors += zone.binary_sensors
+    async_add_entities(binary_sensors)

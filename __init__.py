@@ -13,6 +13,7 @@ import homeassistant.helpers.config_validation as cv
 from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
+from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.util import slugify
 
 from homeassistant.helpers.update_coordinator import (
@@ -30,22 +31,31 @@ from .const import (
     CONFIG_SCHEMA,
 )
 
-#PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN ]
-PLATFORMS = [ SWITCH_DOMAIN ]
+PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN, BINARY_SENSOR_DOMAIN ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
-    _LOGGER.debug("Config from YAML")
     if DOMAIN not in config:
         return True
-    _LOGGER.debug(config[DOMAIN])
+    #_LOGGER.debug(config[DOMAIN])
     config = config[DOMAIN]
 
     """ Tell whether this config is already available in config_entries """
     def order_dict(dictionary):
+        # Create a straightforward order of the values. First sort by value, then sort by key
         return {k: order_dict(v) if isinstance(v, dict) else v for k, v in sorted(dictionary.items())}
+    def sort_dict_keys(input_dict):
+        sorted_dict = {}
+        for key in sorted(input_dict.keys()):
+            value = input_dict[key]
+            if isinstance(value, dict):
+                value = sort_dict_keys(value)
+            elif isinstance(value, (list, tuple)):
+                value = [sort_dict_keys(item) if isinstance(item, dict) else item for item in value]
+            sorted_dict[key] = value
+        return sorted_dict
 
     def imported(iid):
         result = False
@@ -57,7 +67,10 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         return result
 
     # Add the main zone controller                
-    iid =  hashlib.md5(str(config).encode('utf-8')).hexdigest()
+    iid =  hashlib.md5(str(sort_dict_keys(config)).encode('utf-8')).hexdigest()
+    _LOGGER.debug(str(sort_dict_keys(config)))
+    _LOGGER.debug(iid)
+
     if not imported(iid):
         config[CONF_IMPORT] = iid
         hass.async_create_task(
