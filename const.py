@@ -91,6 +91,13 @@ CONFIG_SCHEMA = vol.Schema({
 )
 
 
+def remove_platform_name(str):
+    for tag in ['sensor', 'switch', 'input_number', 'input_boolean']:
+        if str.startswith(f"{tag}."):
+            return str[len(tag) + 1:]
+    return str
+    
+
 STARTUP_MESSAGE = f"""
 -------------------------------------------------------------------
 {NAME}

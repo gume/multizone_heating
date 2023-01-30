@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE
+from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_POWER
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.components.switch import SwitchEntity
@@ -20,11 +20,10 @@ from .const import (
     DOMAIN,
     CONF_ZONES, CONF_PUMPS, CONF_SUBZONES,
     CONF_MAIN,
+    remove_platform_name,
 )
 
 from .subzone import SubZone
-
-BINARY_SENSOR_DEVICE_CLASS = "power"
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -43,7 +42,7 @@ class Zone:
         self._subzones = []
 
         for cp in config[CONF_PUMPS]:
-            pump = Pump(self, self._name, cp)
+            pump = Pump(self, cp)
             self._pumps.append(pump)
             self._entities += pump.entities
 
@@ -79,7 +78,7 @@ class ZoneMaster:
             self._entities += zone.entities
 
         for cp in config[CONF_PUMPS]:
-            pump = Pump(self, CONF_MAIN, cp)
+            pump = Pump(self, cp)
             self._pumps.append(pump)
             self._entities += pump.entities
 
@@ -101,13 +100,14 @@ class Pump(BinarySensorEntity):
     """ Pump controls the heating, either for a zone or for all the zones """
     """ There is a binary sensor to visualize the state of the sensor """
 
-    def __init__(self, zone, zonename, config):
+    def __init__(self, zone, config):
         self._pumpswitch = config[CONF_ENTITY_ID]
-        self._pumpswitch = self._pumpswitch[7:] if self._pumpswitch.startswith("switch.") else self._pumpswitch
-        self._attr_name = f"{self._pumpswitch}"
-        self._attr_unique_id = slugify(f"{DOMAIN}_{zonename}_{self._pumpswitch}")
+        #self._pumpswitch = self._pumpswitch[7:] if self._pumpswitch.startswith("switch.") else self._pumpswitch
+        self._attr_name = f"{zone.name}_{remove_platform_name(self._pumpswitch)}"
+        self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
         self._attr_icon = "mdi:valve"
         self._attr_available = False
+        self._device_class = DEVICE_CLASS_POWER
 
         self._entities = [ self ]
         self._zone = zone
@@ -115,9 +115,9 @@ class Pump(BinarySensorEntity):
 
         self.hass = zone.hass
 
-        self._listen = async_track_state_change_event(self.hass, [config[CONF_ENTITY_ID]], self.async_pumpswitch_state_change)
+        self._listen = async_track_state_change_event(self.hass, [self._pumpswitch], self.async_pumpswitch_state_change_event)
 
-    async def async_pumpswitch_state_change(self, event):
+    async def async_pumpswitch_state_change_event(self, event):
         self._state = (event.data.get("new_state").state == "on")
         self._attr_icon = "mdi:valve-open" if self._state else "mdi:valve-closed"
         self._attr_available = True
@@ -129,9 +129,6 @@ class Pump(BinarySensorEntity):
     @property
     def name(self):
         return self._attr_name
-    @property
-    def device_class(self):
-        return BINARY_SENSOR_DEVICE_CLASS
     @property
     def is_on(self):
         return self._state

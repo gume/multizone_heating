@@ -5,7 +5,7 @@ import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE
+from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.components.switch import SwitchEntity
@@ -18,8 +18,9 @@ from homeassistant.helpers.entity import Entity
 from .const import (
     MANUFACTURER, VERSION, NAME,
     DOMAIN,
-    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES,
+    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_SENSOR,
     CONF_MAIN,
+    remove_platform_name,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -38,6 +39,10 @@ class SubZone(SwitchEntity):
 
         self._zone = zone
         self._hass = zone.hass
+
+        if CONF_SENSOR in config:
+            temp = SubZoneTemperature(zone, config[CONF_SENSOR])
+            self._entities += [ temp ]
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         self._state = "on"
@@ -69,3 +74,44 @@ class SubZone(SwitchEntity):
             "model": NAME,
             "manufacturer": MANUFACTURER,
         }
+
+class SubZoneTemperature(SensorEntity):
+
+    def __init__(self, zone, entity_id):
+        self._sensor_id = entity_id
+        self._attr_name = f"{zone.name}_{remove_platform_name(entity_id)}"
+        self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
+        #self._attr_icon = "mdi:radiator-disabled"
+        self._attr_available = False
+        self._temperature = None
+        self._device_class =  DEVICE_CLASS_TEMPERATURE
+
+        self._zone = zone
+        self.hass = zone.hass
+
+        self._listen = async_track_state_change_event(self.hass, [self._sensor_id], self.async_temp_state_change_event)
+
+    async def async_temp_state_change_event(self, event):
+        self._temperature = event.data.get("new_state").state
+        self._attr_available = True
+        self.async_write_ha_state()
+
+    @property
+    def state(self):
+        return self._temperature
+    @property
+    def unit_of_measurement(self):
+        return TEMP_CELSIUS
+    @property    
+    def name(self):
+        return self._attr_name
+    @property
+    def device_info(self):
+        return {
+            "identifiers": {(DOMAIN, self._zone.name)},
+            "name": self._zone.name,
+            "model": NAME,
+            "manufacturer": MANUFACTURER,
+        }
+
+
