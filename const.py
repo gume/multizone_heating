@@ -41,6 +41,7 @@ CONF_PUMPS = "pumps"
 CONF_IMPORT = "import_id"
 CONF_MAIN = "Main Controller"
 CONF_ZONE = "Zone"
+CONF_MODES = [ "BUSY", "AWAY", "NIGHT", "VACATION", "OFF", "BURST" ]
 
 # Defaults
 DEFAULT_NAME = DOMAIN
@@ -96,7 +97,7 @@ def remove_platform_name(str):
         if str.startswith(f"{tag}."):
             return str[len(tag) + 1:]
     return str
-    
+
 
 STARTUP_MESSAGE = f"""
 -------------------------------------------------------------------

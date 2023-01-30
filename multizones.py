@@ -42,12 +42,12 @@ class Zone:
         self._subzones = []
 
         for cp in config[CONF_PUMPS]:
-            pump = Pump(self, cp)
+            pump = Pump(self, self._name, cp)
             self._pumps.append(pump)
             self._entities += pump.entities
 
         for csz in config[CONF_SUBZONES]:
-            subzone = SubZone(self, csz)
+            subzone = SubZone(self, self._name, csz)
             self._subzones.append(subzone)
             self._entities += subzone.entities
 
@@ -67,6 +67,7 @@ class ZoneMaster:
     def __init__(self, hass: HomeAssistant, config: dict) -> None:
         
         self._entities = []
+        self._name = CONF_MAIN
 
         self._zones = []
         self._pumps = []
@@ -78,16 +79,13 @@ class ZoneMaster:
             self._entities += zone.entities
 
         for cp in config[CONF_PUMPS]:
-            pump = Pump(self, cp)
+            pump = Pump(self, self._name, cp)
             self._pumps.append(pump)
             self._entities += pump.entities
 
     @property
     def name(self):
-        return CONF_MAIN
-    @property
-    def zones(self) ->dict:
-        return self._zones
+        return self._name
     @property
     def entities(self) ->dict:
         return self._entities
@@ -100,11 +98,12 @@ class Pump(BinarySensorEntity):
     """ Pump controls the heating, either for a zone or for all the zones """
     """ There is a binary sensor to visualize the state of the sensor """
 
-    def __init__(self, zone, config):
+    def __init__(self, zone, device_name, config):
         self._pumpswitch = config[CONF_ENTITY_ID]
         #self._pumpswitch = self._pumpswitch[7:] if self._pumpswitch.startswith("switch.") else self._pumpswitch
         self._attr_name = f"{zone.name}_{remove_platform_name(self._pumpswitch)}"
         self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
+        self._device_name = device_name
         self._attr_icon = "mdi:valve"
         self._attr_available = False
         self._device_class = DEVICE_CLASS_POWER
@@ -135,7 +134,7 @@ class Pump(BinarySensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self._zone.name)},
+            "identifiers": {(DOMAIN, self._device_name)},
             "name": self._zone.name,
             "model": NAME,
             "manufacturer": MANUFACTURER,
