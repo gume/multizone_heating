@@ -5,10 +5,11 @@ import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant
-from homeassistant.const import CONF_NAME, CONF_ENTITY_ID
+from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.components.switch import SwitchEntity
+from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity import Entity
@@ -17,9 +18,11 @@ from homeassistant.helpers.entity import Entity
 from .const import (
     MANUFACTURER, VERSION, NAME,
     DOMAIN,
-    CONF_ZONES, CONF_PUMPS,
+    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES,
     CONF_MAIN,
 )
+
+from .subzone import SubZone
 
 BINARY_SENSOR_DEVICE_CLASS = "power"
 
@@ -33,33 +36,28 @@ class Zone:
         """Init dummy hub."""
         self._name = config[CONF_NAME]
         self._zonemaster = zm
-        self._switches = []
-        self._sensors = []
-        self._binary_sensors = []
+        self._entities = []
         self._hass = zm.hass
 
         self._pumps = []
+        self._subzones = []
 
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, self._name, cp)
             self._pumps.append(pump)
-            self._binary_sensors.append(pump)
+            self._entities += pump.entities
 
-        self._switches.append(ZoneSwitch("test1", self._name))
-        self._switches.append(ZoneSwitch("test2", self._name))
+        for csz in config[CONF_SUBZONES]:
+            subzone = SubZone(self, csz)
+            self._subzones.append(subzone)
+            self._entities += subzone.entities
 
     @property
     def name(self):
         return self._name
     @property
-    def switches(self) ->dict:
-        return self._switches
-    @property
-    def sensors(self) ->dict:
-        return self._sensors
-    @property
-    def binary_sensors(self) ->dict:
-        return self._binary_sensors
+    def entities(self) ->dict:
+        return self._entities
     @property
     def hass(self) ->HomeAssistant:
         return self._hass
@@ -69,9 +67,7 @@ class ZoneMaster:
 
     def __init__(self, hass: HomeAssistant, config: dict) -> None:
         
-        self._switches = []
-        self._sensors = []
-        self._binary_sensors = []
+        self._entities = []
 
         self._zones = []
         self._pumps = []
@@ -80,24 +76,22 @@ class ZoneMaster:
         for cz in config[CONF_ZONES]:
             zone = Zone(self, cz)
             self._zones.append(zone)
+            self._entities += zone.entities
 
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, CONF_MAIN, cp)
             self._pumps.append(pump)
-            self._binary_sensors.append(pump)        
+            self._entities += pump.entities
 
+    @property
+    def name(self):
+        return CONF_MAIN
     @property
     def zones(self) ->dict:
         return self._zones
     @property
-    def switches(self) ->dict:
-        return self._switches
-    @property
-    def sensors(self) ->dict:
-        return self._sensors
-    @property
-    def binary_sensors(self) ->dict:
-        return self._binary_sensors
+    def entities(self) ->dict:
+        return self._entities
     @property
     def hass(self) ->HomeAssistant:
         return self._hass
@@ -115,8 +109,8 @@ class Pump(BinarySensorEntity):
         self._attr_icon = "mdi:valve"
         self._attr_available = False
 
+        self._entities = [ self ]
         self._zone = zone
-        self._zonename = zonename
         self._state = False
 
         self.hass = zone.hass
@@ -124,13 +118,14 @@ class Pump(BinarySensorEntity):
         self._listen = async_track_state_change_event(self.hass, [config[CONF_ENTITY_ID]], self.async_pumpswitch_state_change)
 
     async def async_pumpswitch_state_change(self, event):
-        _LOGGER.debug(event.data)
         self._state = (event.data.get("new_state").state == "on")
         self._attr_icon = "mdi:valve-open" if self._state else "mdi:valve-closed"
         self._attr_available = True
-        _LOGGER.debug(self._state)
         self.async_write_ha_state()
 
+    @property
+    def entities(self):
+        return self._entities
     @property
     def name(self):
         return self._attr_name
@@ -143,41 +138,8 @@ class Pump(BinarySensorEntity):
     @property
     def device_info(self):
         return {
-            "identifiers": {(DOMAIN, self._zonename)},
-            "name": self._zonename,
-            "model": NAME,
-            "manufacturer": MANUFACTURER,
-        }
-
-
-class ZoneSwitch(SwitchEntity):
-
-    def __init__(self, name, zonename):
-        self._attr_name = name
-        self._attr_unique_id = slugify(f"{DOMAIN}_{zonename}_{name}")
-        self._zonename = zonename
-#        self._attr_device_info = DeviceInfo({"identifiers": ({DOMAIN, zonename}), "name": NAME, "model": VERSION, "manufacturer": MANUFACTURER })
-
-    async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
-        """Turn on the switch."""
-        pass
-
-    async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
-        """Turn off the switch."""
-        pass
-
-    @property
-    def name(self):
-        return self._attr_name
-    @property
-    def is_on(self):
-        """Return true if the switch is on."""
-        return True
-    @property
-    def device_info(self):
-        return {
-            "identifiers": {(DOMAIN, self._zonename)},
-            "name": self._zonename,
+            "identifiers": {(DOMAIN, self._zone.name)},
+            "name": self._zone.name,
             "model": NAME,
             "manufacturer": MANUFACTURER,
         }
