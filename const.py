@@ -41,7 +41,9 @@ CONF_PUMPS = "pumps"
 CONF_IMPORT = "import_id"
 CONF_MAIN = "Main Controller"
 CONF_ZONE = "Zone"
-CONF_MODES = [ "BUSY", "AWAY", "NIGHT", "VACATION", "OFF", "BURST" ]
+CONF_MODES = [ "busy", "away", "night", "vacation", "burst", "off", "manual" ]
+
+SERVICE_SUBZONE_PRESET_MODE = "subzone_preset_mode"
 
 # Defaults
 DEFAULT_NAME = DOMAIN

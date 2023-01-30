@@ -5,7 +5,7 @@ import voluptuous as vol
 import hashlib
 
 
-from homeassistant.core import Config, HomeAssistant
+from homeassistant.core import Config, HomeAssistant, ServiceCall, callback
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import ConfigEntryNotReady
@@ -29,6 +29,7 @@ from .const import (
     CONF_IMPORT,
     CONF_ZONES,
     CONFIG_SCHEMA,
+    SERVICE_SUBZONE_PRESET_MODE,
 )
 
 PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN, BINARY_SENSOR_DOMAIN ]
@@ -81,7 +82,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         )
     
-    #hass.states.async_set("switch.world", "On")
+    #hass.states.async_set("subzone.aa", "Ready")
     return True
 
 
@@ -91,6 +92,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+
+    @callback
+    async def async_subzone_preset_mode(call: ServiceCall) -> None:
+        _LOGGER.debug('Received data')
+        _LOGGER.debug(call.data)
+        result = await zonemaster.async_call(SERVICE_SUBZONE_PRESET_MODE, call)
+
+    hass.services.async_register(DOMAIN, SERVICE_SUBZONE_PRESET_MODE, async_subzone_preset_mode)
 
     return True
 

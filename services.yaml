@@ -1,0 +1,29 @@
+subzone_preset_mode:
+  name: Set subzone preset mode
+  description: Set preset mode for the subzone.
+  target:
+    entity:
+      domain: subzone
+  fields:
+    preset_mode:
+      name: Preset mode
+      description: New value of preset mode.
+      required: true
+      example: "away"
+      selector:
+        select:
+          options:
+            - label: "Busy"
+              value: "busy"
+            - label: "Away"
+              value: "away"
+            - label: "Night"
+              value: "night"
+            - label: "Vacation"
+              value: "vacation"
+            - label: "Burst"
+              value: "burst"
+            - label: "Off"
+              value: "off"
+            - label: "Manual"
+              value: "manual"

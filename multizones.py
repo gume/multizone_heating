@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, DEVICE_CLASS_POWER
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
@@ -33,7 +33,7 @@ class Zone:
 
     def __init__(self, zm: ZoneMaster, config: dict) -> None:
         """Init dummy hub."""
-        self._name = config[CONF_NAME]
+        self._name = slugify(config[CONF_NAME])
         self._zonemaster = zm
         self._entities = []
         self._hass = zm.hass
@@ -50,6 +50,15 @@ class Zone:
             subzone = SubZone(self, self._name, csz)
             self._subzones.append(subzone)
             self._entities += subzone.entities
+
+    async def async_call(self, service: str, call: ServiceCall):
+        _LOGGER.debug(f"async_call {self.name}")
+        main_result = []
+        for z in self._subzones:
+            result = await z.async_call(service, call)
+            if result is not False:
+                main_result.append((z, result))
+        return main_result
 
     @property
     def name(self):
@@ -82,6 +91,15 @@ class ZoneMaster:
             pump = Pump(self, self._name, cp)
             self._pumps.append(pump)
             self._entities += pump.entities
+
+    async def async_call(self, service: str, call: ServiceCall):
+        _LOGGER.debug(f"async_call {self.name}")
+        main_result = []
+        for z in self._zones:
+            result = await z.async_call(service, call)
+            if result is not False:
+                main_result.append((z, result))
+        return main_result        
 
     @property
     def name(self):

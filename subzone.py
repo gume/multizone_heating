@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, TEMP_CELSIUS
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
@@ -21,6 +21,7 @@ from .const import (
     CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_SENSOR,
     CONF_MAIN, CONF_MODES,
     remove_platform_name,
+    SERVICE_SUBZONE_PRESET_MODE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 class SubZone(SwitchEntity):
 
     def __init__(self, zone, device_name, config):
-        self._attr_name = f"{zone.name}_{config[CONF_NAME]}"
+        self._attr_name = slugify(f"{zone.name}_{config[CONF_NAME]}")
         self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
         self._device_name = device_name
         self._attr_icon = "mdi:radiator-disabled"
@@ -47,6 +48,22 @@ class SubZone(SwitchEntity):
 
         self._mode = SubZoneMode(self, self._device_name)
         self._entities += [ self._mode ]
+        
+        self.hass.states.async_set(f"subzone.{self.name}" , self._mode.state)
+
+    async def async_call(self, service: str, call: ServiceCall):
+        if  f"subzone.{self.name}" in call.data[CONF_ENTITY_ID]:
+            if service == SERVICE_SUBZONE_PRESET_MODE:
+                return await self.async_call_subzone_preset_mode(call)
+            _LOGGER.warning(f"No such service {service}")
+        return False
+
+    async def async_call_subzone_preset_mode(self, call: ServiceCall):
+        new_mode = call.data["preset_mode"]
+        result = await self._mode.async_set_preset_mode(new_mode)
+        if result:
+            self.hass.states.async_set(f"subzone.{self.name}" , self._mode.state)
+        return result
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         self._state = "on"
@@ -86,7 +103,7 @@ class SubZoneTemperature(SensorEntity):
 
     def __init__(self, zone, device_name, entity_id):
         self._sensor_id = entity_id
-        self._attr_name = f"{zone.name}_{remove_platform_name(entity_id)}"
+        self._attr_name = slugify(f"{zone.name}_{remove_platform_name(entity_id)}")
         self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
         self._device_name = device_name
         #self._attr_icon = "mdi:radiator-disabled"
@@ -131,7 +148,7 @@ class SubZoneMode(SensorEntity):
     """ Busy, Away, Vacation, Night, Off, Burst """
     def __init__(self, zone, device_name):
         self._states = CONF_MODES
-        self._attr_name = f"{zone.name}_mode"
+        self._attr_name = slugify(f"{zone.name}_mode")
         self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
         self._device_name = device_name
         self._attr_available = True
@@ -140,6 +157,13 @@ class SubZoneMode(SensorEntity):
 
         self._zone = zone
         self.hass = zone.hass
+
+    async def async_set_preset_mode(self, preset):
+        if preset in CONF_MODES:
+            self._state = preset
+            self.async_write_ha_state()
+        else:
+            return False
 
     @property
     def state(self):
