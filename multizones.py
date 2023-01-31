@@ -39,16 +39,21 @@ class Zone:
         self._hass = zm.hass
 
         self._pumps = []
+        self._pump_states = {}
         self._subzones = []
+        self._subzone_states = {}
+        self._heating = "unknown"
 
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, self._name, cp)
-            self._pumps.append(pump)
+            self._pumps.append(pump.name)
+            self._pump_states[pump.name] = (pump, "unknown")
             self._entities += pump.entities
 
         for csz in config[CONF_SUBZONES]:
             subzone = SubZone(self, self._name, csz)
-            self._subzones.append(subzone)
+            self._subzones.append(subzone.name)
+            self._subzone_states[subzone.name] = (subzone, "unknown")
             self._entities += subzone.entities
 
     async def async_call(self, service: str, call: ServiceCall):
@@ -59,6 +64,46 @@ class Zone:
             if result is not False:
                 main_result.append((z, result))
         return main_result
+
+    async def async_subzone_change(self, subzone: SubZone, new_state: str):
+        _LOGGER.debug(f"Subzone change {subzone}")
+        change = False
+        if subzone in self._subzones:
+            sz, szs = self._subzone_states[subzone]
+            if szs != new_state:
+                change = True
+            self._subzone_states[subzone] = (sz, new_state)
+        else:
+            _LOGGER.warning(f"Unknown subzone name! {subzone}")
+        if not change:
+            return
+        
+        self.hass.async_create_task(self.async_control_pumps())
+
+    async def async_control_pumps(self, force = False):
+        _LOGGER.debug(f"Pump control {force}, {self._heating}")
+        any_on = False
+        for szn, (sz, szs) in self._subzone_states.items():
+            if szs == "on":
+                any_on = True
+                break
+        
+        if any_on:
+            if not force and self._heating is "on":
+                return
+            self._heating = "on"
+            _LOGGER.debug(f"Pump control to {self._heating}")
+            for pn, (p, ps) in self._pump_states.items():
+                _LOGGER.debug(f"Pump {pn} on {p}")
+                await p.async_turn_on()
+        else:
+            if not force and self._heating is "off":
+                return
+            self._heating = "off"
+            _LOGGER.debug(f"Pump control to {self._heating}")
+            for pn, (p, ps) in self._pump_states.items():
+                _LOGGER.debug(f"Pump {pn} off {p}")
+                await p.async_turn_off()
 
     @property
     def name(self):
@@ -101,6 +146,9 @@ class ZoneMaster:
                 main_result.append((z, result))
         return main_result        
 
+    async def async_control_pumps(self, force = False):
+        pass
+
     @property
     def name(self):
         return self._name
@@ -135,10 +183,21 @@ class Pump(BinarySensorEntity):
         self._listen = async_track_state_change_event(self.hass, [self._pumpswitch], self.async_pumpswitch_state_change_event)
 
     async def async_pumpswitch_state_change_event(self, event):
+        _LOGGER.debug(f"Pump change {event.data}")
         self._state = (event.data.get("new_state").state == "on")
         self._attr_icon = "mdi:valve-open" if self._state else "mdi:valve-closed"
         self._attr_available = True
         self.async_write_ha_state()
+
+        self.hass.async_create_task(self._zone.async_control_pumps(True))
+
+    async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
+        _LOGGER.debug(f"switch turn_on entity_id: {self._pumpswitch}")
+        await self.hass.services.async_call("switch", "turn_on", {"entity_id": self._pumpswitch})
+
+    async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
+        _LOGGER.debug(f"switch turn_off entity_id: {self._pumpswitch}")
+        await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._pumpswitch})
 
     @property
     def entities(self):

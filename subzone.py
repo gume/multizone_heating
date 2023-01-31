@@ -115,6 +115,7 @@ class SubZone(SwitchEntity):
         self._state = "on"
         self._attr_icon = "mdi:radiator"
         self.async_write_ha_state()
+        self.hass.async_create_task(self._zone.async_subzone_change(self.name, "on"))
         self.hass.async_create_task(self.async_control_valves())
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
@@ -122,6 +123,7 @@ class SubZone(SwitchEntity):
         self._state = "off"
         self._attr_icon = "mdi:radiator-off"
         self.async_write_ha_state()
+        self.hass.async_create_task(self._zone.async_subzone_change(self.name, "off"))
         self.hass.async_create_task(self.async_control_valves())
 
     @property
