@@ -14,7 +14,7 @@ DOMAIN = "multizone_heating"
 DOMAIN_DATA = f"{DOMAIN}_data"
 VERSION = "0.0.1"
 ATTRIBUTION = "Data provided by ..."
-ISSUE_URL = "https://github.com/.../issues"
+ISSUE_URL = "https://github.com/gume/multizone_heating/issues"
 MANUFACTURER = "Gume"
 
 
@@ -39,6 +39,8 @@ CONF_MODES = [ "busy", "away", "night", "vacation", "burst", "off", "manual" ]
 
 SERVICE_SUBZONE_PRESET_MODE = "subzone_preset_mode"
 ATTR_ACTIVE = "active"
+ATTR_ACTIVE_START = "active_start"
+ATTR_ACTIVE_END = "active_end"
 
 
 # Defaults

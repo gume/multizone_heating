@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import datetime
 
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import (
@@ -16,6 +17,7 @@ from homeassistant.components.sensor import SensorEntity
 from homeassistant.components.binary_sensor import BinarySensorEntity
 from homeassistant.helpers.event import async_track_state_change_event, async_call_later
 from homeassistant.helpers.entity import Entity
+import homeassistant.util.dt as dt_util
 
 
 from .const import (
@@ -24,7 +26,7 @@ from .const import (
     CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_KEEP_ACTIVE,
     CONF_MAIN,
     remove_platform_name,
-    ATTR_ACTIVE,
+    ATTR_ACTIVE, ATTR_ACTIVE_START, ATTR_ACTIVE_END,
 )
 
 from .subzone import SubZone
@@ -47,7 +49,9 @@ class Zone:
         self._subzone_names = []
         self._subzone_states = {}
         
-        self._heating = STATE_UNKNOWN
+        #self._heating = STATE_UNKNOWN
+        self._heating = STATE_OFF
+        self._heating_change = dt_util.utcnow()
 
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, self.name, cp)
@@ -122,6 +126,7 @@ class Zone:
         if any_on != self._heating:
             _LOGGER.debug(f"{self.name}: Change heating to {any_on}")
             self._heating = any_on
+            self._heating_change = dt_util.utcnow()
             await self.async_parent_notify()
             self.hass.async_create_task(self.async_control_pumps())
 
@@ -177,18 +182,19 @@ class ZoneMaster(Zone):
 
         self._hass = hass
 
-        self._heating = "unknown"
+        self._heating = STATE_OFF
+        self._heating_change = dt_util.utcnow()
 
         for cz in config[CONF_ZONES]:
             zone = Zone(self, cz)
             self._subzone_names.append(zone.name)
-            self._subzone_states[zone.name] = (zone, "unknown")
+            self._subzone_states[zone.name] = (zone, STATE_UNKNOWN)
             self._entities += zone.entities
 
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, self._attr_name, cp)
             self._pump_names.append(pump.name)
-            self._pump_states[pump.name] = (pump, "unknown")
+            self._pump_states[pump.name] = (pump, STATE_UNKNOWN)
             self._entities += pump.entities
 
     #@override
@@ -225,7 +231,8 @@ class Pump(BinarySensorEntity):
 
         self._entities = [ self ]
         self._zone = zone
-        self._state = STATE_UNKNOWN
+
+        self._attr_state = STATE_UNKNOWN
         self._attr_extra_state_attributes = {}
         self._attr_extra_state_attributes[ATTR_ACTIVE] = False
 
@@ -235,11 +242,10 @@ class Pump(BinarySensorEntity):
 
     async def async_pumpswitch_state_change_event(self, event):
         _LOGGER.debug(f"Pump change {event.data}")
-        self._state = event.data.get("new_state").state
-        self._attr_icon = "mdi:valve-open" if self._state == "on" else "mdi:valve-closed"
+        self._attr_state = event.data.get("new_state").state
+        self._attr_icon = "mdi:valve-open" if self.state == STATE_ON else "mdi:valve-closed"
         self._attr_available = True
         self.async_write_ha_state()
-
         self.hass.async_create_task(self._zone.async_control_pumps(True))
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
@@ -250,18 +256,31 @@ class Pump(BinarySensorEntity):
         _LOGGER.debug(f"switch turn_off entity_id: {self._pumpswitch}")
         await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._pumpswitch})
         self._attr_extra_state_attributes[ATTR_ACTIVE] = False
+        if ATTR_ACTIVE_START in self._attr_extra_state_attributes:
+            del self._attr_extra_state_attributes[ATTR_ACTIVE_START]
+        if ATTR_ACTIVE_END in self._attr_extra_state_attributes:
+            del self._attr_extra_state_attributes[ATTR_ACTIVE_END]
         self.async_write_ha_state()
 
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
-        #if self._keep_active == 0:
-        #    return self.async_turn_off_now()
+        if self._keep_active == 0:
+            return await self.async_turn_off_now(dt_util.utcnow())
 
         _LOGGER.debug(f"switch call turn_off entity_id: {self._pumpswitch} after {self._keep_active} seconds")
         if self._later != None:
             self._later() # Cancel old event
-        self._later = async_call_later(self.hass, self._keep_active, self.async_turn_off_now)
+        """ Check the heating state at parent. Taking into account the time of the change """
+        activetime =  self._zone._heating_change + datetime.timedelta(seconds=self._keep_active) - dt_util.utcnow()
+        activetime_s = activetime.total_seconds()
+        if activetime_s < 0.0:
+            return await self.async_turn_off_now(dt_util.utcnow())
+
+        """ Set the turn off at a later time """
+        self._later = async_call_later(self.hass, activetime_s, self.async_turn_off_now)
         self._attr_extra_state_attributes[ATTR_ACTIVE] = True
+        self._attr_extra_state_attributes[ATTR_ACTIVE_START] = dt_util.utcnow()
+        self._attr_extra_state_attributes[ATTR_ACTIVE_END] = dt_util.utcnow() + datetime.timedelta(seconds=activetime_s)
         self.async_write_ha_state()
     
     @property
@@ -269,7 +288,7 @@ class Pump(BinarySensorEntity):
         return self._entities
     @property
     def is_on(self):
-        return self._state
+        return self._attr_state == STATE_ON
     @property
     def device_info(self):
         return {
