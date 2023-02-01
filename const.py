@@ -17,12 +17,6 @@ ATTRIBUTION = "Data provided by ..."
 ISSUE_URL = "https://github.com/.../issues"
 MANUFACTURER = "Gume"
 
-# Icons
-ICON = "mdi:format-quote-close"
-
-# Device classes
-BINARY_SENSOR_DEVICE_CLASS = "connectivity"
-SWITCH = "switch"
 
 # Configuration and options
 CONF_ZONES = "zones"
@@ -44,6 +38,8 @@ CONF_ZONE = "Zone"
 CONF_MODES = [ "busy", "away", "night", "vacation", "burst", "off", "manual" ]
 
 SERVICE_SUBZONE_PRESET_MODE = "subzone_preset_mode"
+ATTR_ACTIVE = "active"
+
 
 # Defaults
 DEFAULT_NAME = DOMAIN

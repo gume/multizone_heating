@@ -5,7 +5,10 @@ import asyncio
 import logging
 
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.const import CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, TEMP_CELSIUS
+from homeassistant.const import (
+    CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, TEMP_CELSIUS,
+    STATE_UNKNOWN, STATE_ON, STATE_OFF,
+)
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.components.switch import SwitchEntity
@@ -35,7 +38,7 @@ class SubZone(SwitchEntity):
         self._device_name = device_name
         self._attr_icon = "mdi:radiator-disabled"
         self._attr_available = True
-        self._state = "off"
+        self._state = STATE_OFF
 
         self._entities = [ self ]
 
@@ -55,7 +58,7 @@ class SubZone(SwitchEntity):
             for cv  in config[CONF_VALVES]:
                 switch = cv[CONF_SWITCH]
                 self._valves.append(switch)
-                self._valve_states[switch] = "unknown"
+                self._valve_states[switch] = STATE_UNKNOWN
 
         """ Listen on valve changes and force them to follow the subzone requirements """
         if len(self._valves) > 0:
@@ -112,18 +115,18 @@ class SubZone(SwitchEntity):
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
-        self._state = "on"
+        self._state = STATE_ON
         self._attr_icon = "mdi:radiator"
         self.async_write_ha_state()
-        self.hass.async_create_task(self._zone.async_subzone_change(self.name, "on"))
+        self.hass.async_create_task(self._zone.async_subzone_change(self.name, STATE_ON))
         self.hass.async_create_task(self.async_control_valves())
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
-        self._state = "off"
+        self._state = STATE_OFF
         self._attr_icon = "mdi:radiator-off"
         self.async_write_ha_state()
-        self.hass.async_create_task(self._zone.async_subzone_change(self.name, "off"))
+        self.hass.async_create_task(self._zone.async_subzone_change(self.name, STATE_OFF))
         self.hass.async_create_task(self.async_control_valves())
 
     @property
@@ -134,7 +137,7 @@ class SubZone(SwitchEntity):
         return self._entities
     @property
     def is_on(self):
-        return self._state == "on"
+        return self._state == STATE_ON
     @property    
     def name(self):
         return self._attr_name
