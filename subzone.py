@@ -8,12 +8,16 @@ from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.const import (
     CONF_NAME, CONF_ENTITY_ID, DEVICE_CLASS_TEMPERATURE, TEMP_CELSIUS,
     STATE_UNKNOWN, STATE_ON, STATE_OFF,
+    SERVICE_TURN_ON, SERVICE_TURN_OFF,
+    ATTR_TEMPERATURE,
 )
 from homeassistant.helpers.entity import DeviceInfo
 from homeassistant.util import slugify
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, UnitOfTemperature
 from homeassistant.components.binary_sensor import BinarySensorEntity
+from homeassistant.components.climate import SERVICE_SET_TEMPERATURE, HVACMode
+from homeassistant.components.climate import DOMAIN as CLIMATE_DOMAIN 
 from homeassistant.helpers.event import async_track_state_change_event
 from homeassistant.helpers.entity import Entity
 from homeassistant.exceptions import ServiceNotFound
@@ -21,12 +25,12 @@ from homeassistant.exceptions import ServiceNotFound
 from .const import (
     MANUFACTURER, VERSION, NAME,
     DOMAIN,
-    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_SENSOR, CONF_VALVES, CONF_SWITCH,
+    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_SENSOR, CONF_VALVES, CONF_SWITCH, CONF_CONTROL,
     CONF_MAIN,
     remove_platform_name,
     SERVICE_SUBZONE_PRESET_MODE, PRESET_MODES, PRESET_MODE_ACTIVE, PRESET_MODE_AWAY, PRESET_MODE_NIGHT, PRESET_MODE_VACATION,
-    PRESET_MODE_BURST, PRESET_MODE_OFF, PRESET_MODE_MANUAL,
-    CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME,
+    PRESET_MODE_BOOST, PRESET_MODE_OFF, PRESET_MODE_MANUAL,
+    CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BOOST_TEMP, CONF_BOOST_TIME,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -65,7 +69,6 @@ class SubZone(SwitchEntity):
 
         self._preset = {}
         self.init_temperatures(config)
-        _LOGGER.debug(f"Presets: {self._preset}")
 
         """ Listen on valve changes and force them to follow the subzone requirements """
         if len(self._valves) > 0:
@@ -74,11 +77,26 @@ class SubZone(SwitchEntity):
                 
         self.hass.async_create_task(self.async_update())
 
+        self._thermostat_name = None
+        self._thermostat_ready = False
+        if CONF_CONTROL in config:
+            self._thermostat_name = config[CONF_CONTROL]
+            """ List registry for the thermostat device """
+            # async_track_entity_registry_updated_event	
+            # async_track_state_added_domain
+            control_state = self.hass.states.get(self._thermostat_name)
+            if control_state is not None:
+                self._thermostat_ready = True
+
+            """ Listen on changes, just like setup the tehrmostat """
+            self._listen_thermostat = async_track_state_change_event(self.hass, [self._thermostat_name], self.async_track_thermostat_state_change_event)
+            self.hass.async_create_task(self.async_control_thermostat())
+
     def init_temperatures(self, config):
         """ Read preset temperatures and add default values if they would not exist """
         defaults = { CONF_ACTIVE_TEMP: 20.5, CONF_AWAY_TEMP: 18.0, CONF_NIGHT_TEMP: 18.0,
-            CONF_VACATION_TEMP: 12.0, CONF_OFF_TEMP: 5.0, CONF_BURST_TEMP: 25.0, CONF_BURST_TIME: 30*60 }
-        for cp in [ CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME ]:
+            CONF_VACATION_TEMP: 12.0, CONF_OFF_TEMP: 5.0, CONF_BOOST_TEMP: 25.0, CONF_BOOST_TIME: 30*60 }
+        for cp in [ CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BOOST_TEMP, CONF_BOOST_TIME ]:
             if cp in config:
                 """ Try to read from the config file """
                 try:
@@ -92,7 +110,11 @@ class SubZone(SwitchEntity):
                 else:
                     """ If there is no entry in the config file use the default """
                     self._preset[cp] = defaults[cp]
-        _LOGGER.debug(self._preset)
+        #_LOGGER.debug(self._preset)
+
+
+#    async def async_added_to_hass(self):
+#        _LOGGER.info(f"{self.name} added to hass")
 
     async def async_update(self):
         self._preset_mode = self._preset_handler.state
@@ -121,10 +143,31 @@ class SubZone(SwitchEntity):
         new_mode = call.data["preset_mode"]
         result = await self._preset_handler.async_set_preset_mode(new_mode)
         if result:
+            self._preset_mode = self._preset_handler.state
             """ Change climate to the new preset/value """
-            """ TBD... """
+            await self.async_control_thermostat()
             self.async_schedule_update_ha_state(True)
         return result
+
+    async def async_control_thermostat(self):
+        """ Set the thermostat according to the preset mode """
+        if self._preset_mode == PRESET_MODE_MANUAL or self._thermostat_name == None or not self._thermostat_ready:
+            """ No conrol in manual mode or when the thermostat is not available """
+            return
+        
+        tstate = self.hass.states.get(self._thermostat_name)
+        if tstate != HVACMode.HEAT or tstate != tstate != HVACMode.HEAT_COOL:
+            """ Turn on the climate """
+            _LOGGER.info(f"Turn on {self._thermostat_name}")
+            await self.hass.services.async_call(CLIMATE_DOMAIN, SERVICE_TURN_ON, {CONF_ENTITY_ID: self._thermostat_name})
+            # ATTR_PRESET_MODES, SERVICE_SET_PRESET_MODE
+        
+        setpoint = self._preset[f"{self._preset_mode}_temp"]
+        _LOGGER.debug(f"D2: {self._preset_mode}, {self._thermostat_name}, {self._thermostat_ready}")
+        if tstate.attributes[ATTR_TEMPERATURE] != setpoint:
+            _LOGGER.info(f"Set temperature on {self._thermostat_name} to {setpoint}")
+            await self.hass.services.async_call(CLIMATE_DOMAIN, SERVICE_SET_TEMPERATURE,
+                {CONF_ENTITY_ID: self._thermostat_name, ATTR_TEMPERATURE: setpoint})
 
     async def async_control_valves(self):
         """ Set valves according to the subzone state """
@@ -145,6 +188,18 @@ class SubZone(SwitchEntity):
                 self.hass.async_create_task(self.async_control_valves())
         """ Scedule update """
         self.async_schedule_update_ha_state()
+
+    async def async_track_thermostat_state_change_event(self, event):
+        _LOGGER.debug(f"{self.name} Thermostat event")
+        _LOGGER.debug(event.data)
+        if event.data.get("new_state").state != None:
+            self._thermostat_ready = True
+
+        """ Schedule a control """
+        self.hass.async_create_task(self.async_control_thermostat())
+        """ Scedule update """
+        self.async_schedule_update_ha_state()
+
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
@@ -211,7 +266,7 @@ class SubZoneTemperature(SensorEntity):
 
 class SubZoneMode(SensorEntity):
     """ MZH offers this control via service """
-    """ Busy, Away, Vacation, Night, Off, Burst, Manual """
+    """ Busy, Away, Vacation, Night, Off, Boost, Manual """
     def __init__(self, zone, device_name):
         self._presets = PRESET_MODES
         self._attr_name = slugify(f"{zone.name}_preset")

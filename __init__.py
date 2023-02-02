@@ -63,8 +63,8 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     # Add the main zone controller                
     iid =  hashlib.md5(str(sort_dict_keys(config)).encode('utf-8')).hexdigest()
-    _LOGGER.debug(str(sort_dict_keys(config)))
-    _LOGGER.debug(iid)
+    #_LOGGER.debug(str(sort_dict_keys(config)))
+    #_LOGGER.debug(iid)
 
     if not imported(iid):
         config[CONF_IMPORT] = iid

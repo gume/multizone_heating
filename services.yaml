@@ -13,16 +13,16 @@ subzone_preset_mode:
       selector:
         select:
           options:
-            - label: "Busy"
-              value: "busy"
+            - label: "Active"
+              value: "active"
             - label: "Away"
               value: "away"
             - label: "Night"
               value: "night"
             - label: "Vacation"
               value: "vacation"
-            - label: "Burst"
-              value: "burst"
+            - label: "Boost"
+              value: "boost"
             - label: "Off"
               value: "off"
             - label: "Manual"

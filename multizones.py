@@ -27,7 +27,7 @@ from .const import (
     CONF_MAIN,
     remove_platform_name,
     ATTR_ACTIVE, ATTR_ACTIVE_START, ATTR_ACTIVE_END,
-    CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME
+    CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BOOST_TEMP, CONF_BOOST_TIME
 )
 
 from .subzone import SubZone
@@ -71,7 +71,7 @@ class Zone:
             self._entities += subzone.entities
 
     def init_temperatures(self, config):
-        for cp in [ CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME  ]:
+        for cp in [ CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BOOST_TEMP, CONF_BOOST_TIME  ]:
             if cp in config:
                 """ Try to read from the config file """
                 try:
