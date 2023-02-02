@@ -24,27 +24,55 @@ CONF_SUBZONES = "subzones"
 CONF_SENSOR = "sensor"
 CONF_SWITCH = "switch"
 CONF_VALVES = "valves"
-CONF_TARGET_TEMP = "target_temp"
-CONF_AWAY_TEMP = "away_temp"
-CONF_VACATION_TEMP = "vacation_temp"
-CONF_NIGHT_TEMP = "night_temp"
 CONF_CONTROL = "control"
 CONF_KEEP_ALIVE = "keep_alive"
 CONF_KEEP_ACTIVE = "keep_active"
 CONF_PUMPS = "pumps"
+
 CONF_IMPORT = "import_id"
 CONF_MAIN = "Main Controller"
 CONF_ZONE = "Zone"
-CONF_MODES = [ "busy", "away", "night", "vacation", "burst", "off", "manual" ]
+
+PRESET_MODE_ACTIVE = "active"
+PRESET_MODE_AWAY = "away"
+PRESET_MODE_NIGHT = "night"
+PRESET_MODE_VACATION = "vacation"
+PRESET_MODE_BURST = "burst"
+PRESET_MODE_OFF = "off"
+PRESET_MODE_MANUAL = "manual"
+
+PRESET_MODES = [ PRESET_MODE_ACTIVE, PRESET_MODE_AWAY, PRESET_MODE_NIGHT, PRESET_MODE_VACATION,
+    PRESET_MODE_BURST, PRESET_MODE_OFF, PRESET_MODE_MANUAL ]
+
+CONF_ACTIVE_TEMP = "active_temp"
+CONF_AWAY_TEMP = "away_temp"
+CONF_NIGHT_TEMP = "night_temp"
+CONF_VACATION_TEMP = "vacation_temp"
+CONF_OFF_TEMP = "off_temp"
+CONF_BURST_TEMP = "burst_temp"
+CONF_BURST_TIME = "burst_time"
 
 SERVICE_SUBZONE_PRESET_MODE = "subzone_preset_mode"
 ATTR_ACTIVE = "active"
 ATTR_ACTIVE_START = "active_start"
 ATTR_ACTIVE_END = "active_end"
-
+ATTR_BURST = "burst"
+ATTR_BURST_START = "burst_start"
+ATTR_BURST_END = "burst_end"
 
 # Defaults
 DEFAULT_NAME = DOMAIN
+
+
+CONFIG_PRESETS = vol.Schema({
+    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TIME): vol.Coerce(float),
+})
 
 CONFIG_VALVES = vol.Schema({
     vol.Required(CONF_SWITCH): cv.entity_id,
@@ -53,13 +81,16 @@ CONFIG_VALVES = vol.Schema({
 CONFIG_SUBZONE = vol.Schema({
     vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Optional(CONF_SENSOR): cv.entity_id,
     vol.Optional(CONF_VALVES): vol.All([CONFIG_VALVES]),
-    vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_SENSOR): cv.entity_id,
+    vol.Optional(CONF_CONTROL): cv.entity_id,
+    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
     vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
     vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
     vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_CONTROL): cv.entity_id,
+    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TIME): vol.Coerce(float),
 })
 
 CONFIG_TARGET_SWITCH = vol.Schema({
@@ -73,12 +104,15 @@ CONFIG_TARGET_SWITCH = vol.Schema({
 CONFIG_ZONE = vol.Schema({
     vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Optional(CONF_TARGET_TEMP): vol.Coerce(float),
+    vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
+    vol.Required(CONF_SUBZONES): vol.All([CONFIG_SUBZONE]),
+    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
     vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
     vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
     vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
-    vol.Required(CONF_SUBZONES): vol.All([CONFIG_SUBZONE]),
+    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TEMP): vol.Coerce(float),
+    vol.Optional(CONF_BURST_TIME): vol.Coerce(float),
 })
 
 CONFIG_SCHEMA = vol.Schema({
@@ -86,6 +120,13 @@ CONFIG_SCHEMA = vol.Schema({
             vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
             vol.Required(CONF_ZONES): vol.All([CONFIG_ZONE]),
             vol.Optional(CONF_ENABLED): cv.boolean,
+            vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_BURST_TEMP): vol.Coerce(float),
+            vol.Optional(CONF_BURST_TIME): vol.Coerce(float),
         })
     },
     extra = vol.ALLOW_EXTRA,

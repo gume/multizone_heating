@@ -27,6 +27,7 @@ from .const import (
     CONF_MAIN,
     remove_platform_name,
     ATTR_ACTIVE, ATTR_ACTIVE_START, ATTR_ACTIVE_END,
+    CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME
 )
 
 from .subzone import SubZone
@@ -53,6 +54,10 @@ class Zone:
         self._heating = STATE_OFF
         self._heating_change = dt_util.utcnow()
 
+        self._preset = {}
+        self.init_temperatures(config)
+        _LOGGER.debug(f"Presets: {self._preset}")
+
         for cp in config[CONF_PUMPS]:
             pump = Pump(self, self.name, cp)
             self._pump_names.append(pump.name)
@@ -65,10 +70,23 @@ class Zone:
             self._subzone_states[subzone.name] = (subzone, STATE_UNKNOWN)
             self._entities += subzone.entities
 
+    def init_temperatures(self, config):
+        for cp in [ CONF_ACTIVE_TEMP, CONF_AWAY_TEMP, CONF_NIGHT_TEMP, CONF_VACATION_TEMP, CONF_OFF_TEMP, CONF_BURST_TEMP, CONF_BURST_TIME  ]:
+            if cp in config:
+                """ Try to read from the config file """
+                try:
+                    self._preset[cp] = float(config[cp])
+                except:
+                    _LOGGER.warn(f"{self.name} Wrong config for preset {cp}: {config[cp]}")
+            else:
+                """ If there is no entry in the config file, maybe the parent already has this value """
+                if self.parent is not None and cp in self.parent.preset:
+                    self._preset[cp] = self.parent.preset[cp]
+
     async def async_call(self, service: str, call: ServiceCall):
         _LOGGER.debug(f"async_call {self.name}")
         main_result = []
-        for z, zs in self._subzone_states.items():
+        for zn, (z, zs) in self._subzone_states.items():
             result = await z.async_call(service, call)
             if result is not False:
                 main_result.append((z, result))
@@ -77,7 +95,8 @@ class Zone:
     async def async_parent_notify(self):
         _LOGGER.debug(f"{self.name}: Parent notify")
         """ Tell the parent about the cahnge (SubZone->Zone, Zone->ZoneMaster) """
-        await self._zonemaster.async_subzone_change(self.name, self._heating)
+        if self.parent is not None:
+            await self.parent.async_subzone_change(self.name, self._heating)
 
     async def async_pump_change(self, pump_name: str, new_state: str):
         _LOGGER.debug(f"{self.name}: Pump change {pump_name} to {new_state}")
@@ -166,6 +185,12 @@ class Zone:
     @property
     def hass(self) ->HomeAssistant:
         return self._hass
+    @property
+    def parent(self):
+        return self._zonemaster
+    @property
+    def preset(self) ->dict:
+        return self._preset
 
 
 class ZoneMaster(Zone):
@@ -185,6 +210,11 @@ class ZoneMaster(Zone):
         self._heating = STATE_OFF
         self._heating_change = dt_util.utcnow()
 
+        self._preset = {}
+        self.init_temperatures(config)
+        _LOGGER.debug(f"Presets: {self._preset}")
+
+
         for cz in config[CONF_ZONES]:
             zone = Zone(self, cz)
             self._subzone_names.append(zone.name)
@@ -198,10 +228,9 @@ class ZoneMaster(Zone):
             self._entities += pump.entities
 
     #@override
-    async def async_parent_notify(self):
-        _LOGGER.debug(f"{self.name}: Parent notify (override)")
-        """ Tell the parent about the cahnge (SubZone->Zone, Zone->ZoneMaster) """
-        pass
+    @property
+    def parent(self):
+        return None
 
 
 class Pump(BinarySensorEntity): 
@@ -297,3 +326,6 @@ class Pump(BinarySensorEntity):
             "model": NAME,
             "manufacturer": MANUFACTURER,
         }
+    @property
+    def parent(self):
+        return self._zone

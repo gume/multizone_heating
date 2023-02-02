@@ -16,13 +16,7 @@ from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.util import slugify
 
-from homeassistant.helpers.update_coordinator import (
-    CoordinatorEntity,
-    DataUpdateCoordinator,
-    UpdateFailed,
-)
-
-from .multizones import Zone, ZoneMaster
+from .multizones import ZoneMaster
 
 from .const import (
     DOMAIN,
@@ -82,7 +76,6 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
             )
         )
     
-    #hass.states.async_set("subzone.aa", "Ready")
     return True
 
 
@@ -117,21 +110,3 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         hass.data[DOMAIN].pop(entry.entry_id)
 
     return unload_ok
-
-class MZHCoordinator(DataUpdateCoordinator):
-
-    def __init__(self, hass):
-        """Initialize my coordinator."""
-        self.platforms = []
-        super().__init__(
-            hass,
-            _LOGGER,
-            # Name of the data. For logging purposes.
-            name=DOMAIN,
-            # Polling interval. Will only be polled if there are subscribers.
-            update_interval=timedelta(seconds=30),
-        )
-
-    async def _async_update_data(self):
-        pass
-
