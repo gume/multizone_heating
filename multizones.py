@@ -134,23 +134,47 @@ class Zone:
             return
         
         """ Calculate new state of the actual zone """
-        any_on = "off"
+        any_on = STATE_OFF
         for szn, (sz, szs) in self._subzone_states.items():
             if szs == STATE_ON:
                 any_on = STATE_ON
                 break
-        _LOGGER.debug(f"{self.name}: Calculated any on {any_on}")
+        _LOGGER.debug(f"{self.name}: Calculated subzone any on: {any_on}")
 
-        """ in case of change, notify parent and schedule a pump control """
-        if any_on != self._heating:
-            _LOGGER.debug(f"{self.name}: Change heating to {any_on}")
-            self._heating = any_on
+        change = self._heating != any_on
+        self._heating = any_on
+        if change:
             self._heating_change = dt_util.utcnow()
 
+        """ Notify all zones """
+        for szn, (sz, szs) in self._subzone_states.items():
+            await sz.async_parent_change()
+
+        """ in case of change, notify parent and schedule a pump control """
+        if change:
+            _LOGGER.debug(f"{self.name}: Change heating to {any_on}")            
             """ Reset all active pumps when heating turns on """
             if self._heating:
                 await self.async_clear_pumps()
+            self.hass.async_create_task(self.async_control_pumps())
+            
+            """ Notify parent """
             await self.async_parent_notify()
+
+    async def async_parent_change(self):
+        _LOGGER.debug(f"{self.name} async_parent_change")
+        if self.parent == None:
+            _LOGGER.warn("Invalid state. async_parent_change called with no parent!")
+            return 
+
+        """ Parent changed (Maybe another zone changed) """
+        if self._heating != self.parent._heating:
+            _LOGGER.debug(f"{self.name} parent ({self.parent._heating}) and zone ({self._heating}) is differnet! ")
+            if self._heating and not self.parent._heating:
+                _LOGGER.warn("Invalid state. Heating required, but parent zone is not heating!")
+
+            """ If there is no heating, but there are active pumps and the parent is active, then close pump immediately """
+            await self.async_clear_pumps()
             self.hass.async_create_task(self.async_control_pumps())
 
     async def async_clear_pumps(self):
@@ -183,7 +207,10 @@ class Zone:
             if self._heating == STATE_ON:
                 await p.async_turn_on()
             if self._heating == STATE_OFF:
-                await p.async_turn_off()
+                if self.parent != None and self.parent._heating == STATE_ON:
+                    await p.async_turn_off_now(None)
+                else:
+                    await p.async_turn_off()
 
     @property
     def name(self):
@@ -293,6 +320,9 @@ class Pump(BinarySensorEntity):
     async def async_turn_off_now(self, _):
         _LOGGER.debug(f"switch turn_off entity_id: {self._pumpswitch}")
         await self.hass.services.async_call("switch", "turn_off", {"entity_id": self._pumpswitch})
+        if self._later != None:
+            self._later() # Cancel old event
+            self._later =  None
         self._attr_extra_state_attributes[ATTR_ACTIVE] = False
         if ATTR_ACTIVE_START in self._attr_extra_state_attributes:
             del self._attr_extra_state_attributes[ATTR_ACTIVE_START]

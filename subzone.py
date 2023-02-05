@@ -204,6 +204,9 @@ class SubZone(SwitchEntity):
         """ Scedule update """
         self.async_schedule_update_ha_state()
 
+    async def async_parent_change(self):
+        """ Parent changed, check valves """
+        self.hass.async_create_task(self.async_control_valves())
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
