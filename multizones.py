@@ -146,8 +146,17 @@ class Zone:
             _LOGGER.debug(f"{self.name}: Change heating to {any_on}")
             self._heating = any_on
             self._heating_change = dt_util.utcnow()
+
+            """ Reset all active pumps when heating turns on """
+            if self._heating:
+                await self.async_clear_pumps()
             await self.async_parent_notify()
             self.hass.async_create_task(self.async_control_pumps())
+
+    async def async_clear_pumps(self):
+        _LOGGER.debug(f"{self.name} Clear pumps")
+        for pn, (p, ps) in self._pump_states.items():
+            await p.async_clear_active()
 
     async def async_control_pumps(self, force = False):
         _LOGGER.debug(f"{self.name} Pump control {force}, {self._heating}")
@@ -299,6 +308,7 @@ class Pump(BinarySensorEntity):
         _LOGGER.debug(f"switch call turn_off entity_id: {self._pumpswitch} after {self._keep_active} seconds")
         if self._later != None:
             self._later() # Cancel old event
+            self._later =  None
         """ Check the heating state at parent. Taking into account the time of the change """
         activetime =  self._zone._heating_change + datetime.timedelta(seconds=self._keep_active) - dt_util.utcnow()
         activetime_s = activetime.total_seconds()
@@ -312,6 +322,19 @@ class Pump(BinarySensorEntity):
         self._attr_extra_state_attributes[ATTR_ACTIVE_END] = dt_util.utcnow() + datetime.timedelta(seconds=activetime_s)
         self.async_write_ha_state()
     
+    async def async_clear_active(self):
+        if self._later != None:
+            self._later() # Cancel old event
+            self._later = None
+        
+        self._attr_extra_state_attributes[ATTR_ACTIVE] = False
+        if ATTR_ACTIVE_START in self._attr_extra_state_attributes:
+            del self._attr_extra_state_attributes[ATTR_ACTIVE_START]
+        if ATTR_ACTIVE_END in self._attr_extra_state_attributes:
+            del self._attr_extra_state_attributes[ATTR_ACTIVE_END]
+        self.async_write_ha_state()
+
+
     @property
     def entities(self):
         return self._entities

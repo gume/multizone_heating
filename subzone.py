@@ -44,7 +44,7 @@ class SubZone(SwitchEntity):
         self._device_name = device_name
         self._attr_icon = "mdi:radiator-disabled"
         self._attr_available = True
-        self._state = STATE_OFF
+        self._attr_state = STATE_OFF
 
         self._entities = [ self ]
 
@@ -172,10 +172,14 @@ class SubZone(SwitchEntity):
     async def async_control_valves(self):
         """ Set valves according to the subzone state """
         """ Valve states are cached, use them """
+        """ When parent zone and this subzone are not heating, then there is no need to close the valves """
+        zs = self._zone._heating
+        if zs == STATE_OFF and self.state == STATE_OFF:
+            return
         for v, s in self._valve_states.items():
-            if s != self._state:
+            if s != self.state:
                 try:
-                    await self.hass.services.async_call("switch", f"turn_{self._state}", {"entity_id": v})
+                    await self.hass.services.async_call("switch", f"turn_{self.state}", {"entity_id": v})
                 except ServiceNotFound as e:
                     _LOGGER.warning(str(e))
 
@@ -183,7 +187,7 @@ class SubZone(SwitchEntity):
         if event.data[CONF_ENTITY_ID] in self._valves:
             v, s = (event.data[CONF_ENTITY_ID], event.data.get("new_state").state)
             self._valve_states[v] = s
-            if s != self._state:
+            if s != self.state:
                 """ Schedule a control """
                 self.hass.async_create_task(self.async_control_valves())
         """ Scedule update """
@@ -203,32 +207,33 @@ class SubZone(SwitchEntity):
 
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
-        self._state = STATE_ON
+        self._attr_state = STATE_ON
         self._attr_icon = "mdi:radiator"
         self.async_write_ha_state()
+        """ Notify parent zone """
         self.hass.async_create_task(self._zone.async_subzone_change(self.name, STATE_ON))
+        """ Adjust valves """
         self.hass.async_create_task(self.async_control_valves())
 
     async def async_turn_off(self, **kwargs):  # pylint: disable=unused-argument
         """ This is the interface to the climate entity. The climate entity will switch it """
-        self._state = STATE_OFF
+        self._attr_state = STATE_OFF
         self._attr_icon = "mdi:radiator-off"
         self.async_write_ha_state()
+        """ Notify parent zone """
         self.hass.async_create_task(self._zone.async_subzone_change(self.name, STATE_OFF))
+        """ Adjust valves """
         self.hass.async_create_task(self.async_control_valves())
 
     @property
     def parent(self):
         return self._zone
     @property
-    def state(self):
-        return self._state
-    @property
     def entities(self):
         return self._entities
     @property
     def is_on(self):
-        return self._state == STATE_ON
+        return self._attr_state == STATE_ON
     @property
     def device_info(self):
         return {
