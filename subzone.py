@@ -39,6 +39,9 @@ _LOGGER = logging.getLogger(__name__)
 class SubZone(SwitchEntity):
 
     def __init__(self, zone, device_name, config):
+
+        self._enabled = zone._enabled
+
         self._attr_name = slugify(f"{zone.name}_{config[CONF_NAME]}")
         self._attr_unique_id = slugify(f"{DOMAIN}_{self._attr_name}")
         self._device_name = device_name

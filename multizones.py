@@ -23,7 +23,7 @@ import homeassistant.util.dt as dt_util
 from .const import (
     MANUFACTURER, VERSION, NAME,
     DOMAIN,
-    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_KEEP_ACTIVE,
+    CONF_ZONES, CONF_PUMPS, CONF_SUBZONES, CONF_KEEP_ACTIVE, CONF_ENABLED,
     CONF_MAIN,
     remove_platform_name,
     ATTR_ACTIVE, ATTR_ACTIVE_START, ATTR_ACTIVE_END,
@@ -39,6 +39,8 @@ _LOGGER = logging.getLogger(__name__)
 class Zone:
 
     def __init__(self, zm: ZoneMaster, config: dict) -> None:
+
+        self._enabled = zm._enabled
 
         self._attr_name = slugify(config[CONF_NAME])
         self._zonemaster = zm
@@ -246,10 +248,13 @@ class ZoneMaster(Zone):
         self._heating = STATE_OFF
         self._heating_change = dt_util.utcnow()
 
+        self._enabled = True
+        if CONF_ENABLED in config:
+            self._enabled = config[CONF_ENABLED]
+
         self._preset = {}
         self.init_temperatures(config)
         _LOGGER.debug(f"Presets: {self._preset}")
-
 
         for cz in config[CONF_ZONES]:
             zone = Zone(self, cz)
