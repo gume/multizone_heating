@@ -24,35 +24,18 @@ CONF_SUBZONES = "subzones"
 CONF_SENSOR = "sensor"
 CONF_SWITCH = "switch"
 CONF_VALVES = "valves"
-CONF_CONTROL = "control"
+CONF_PUMPS = "pumps"
 CONF_KEEP_ALIVE = "keep_alive"
 CONF_KEEP_ACTIVE = "keep_active"
-CONF_PUMPS = "pumps"
 
 CONF_IMPORT = "import_id"
 CONF_MAIN = "Main Controller"
 CONF_ZONE = "Zone"
 
-PRESET_MODE_ACTIVE = "active"
-PRESET_MODE_AWAY = "away"
-PRESET_MODE_NIGHT = "night"
-PRESET_MODE_VACATION = "vacation"
-PRESET_MODE_BOOST = "boost"
-PRESET_MODE_OFF = "off"
-PRESET_MODE_MANUAL = "manual"
-
-PRESET_MODES = [ PRESET_MODE_ACTIVE, PRESET_MODE_AWAY, PRESET_MODE_NIGHT, PRESET_MODE_VACATION,
-    PRESET_MODE_BOOST, PRESET_MODE_OFF, PRESET_MODE_MANUAL ]
-
-CONF_ACTIVE_TEMP = "active_temp"
-CONF_AWAY_TEMP = "away_temp"
-CONF_NIGHT_TEMP = "night_temp"
-CONF_VACATION_TEMP = "vacation_temp"
-CONF_OFF_TEMP = "off_temp"
-CONF_BOOST_TEMP = "boost_temp"
 CONF_BOOST_TIME = "boost_time"
+PRESET_DEFAULTS = { CONF_BOOST_TIME: 15 * 1 }
+#PRESET_DEFAULTS = { CONF_BOOST_TIME: 15 * 60 }
 
-SERVICE_SUBZONE_PRESET_MODE = "subzone_preset_mode"
 ATTR_ACTIVE = "active"
 ATTR_ACTIVE_START = "active_start"
 ATTR_ACTIVE_END = "active_end"
@@ -64,18 +47,8 @@ ATTR_BOOST_END = "boost_end"
 DEFAULT_NAME = DOMAIN
 
 
-CONFIG_PRESETS = vol.Schema({
-    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_BOOST_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
-})
-
 CONFIG_VALVES = vol.Schema({
-    vol.Required(CONF_SWITCH): cv.entity_id,
+    vol.Required(CONF_ENTITY_ID): cv.entity_id,
 })
 
 CONFIG_SUBZONE = vol.Schema({
@@ -83,13 +56,6 @@ CONFIG_SUBZONE = vol.Schema({
     vol.Optional(CONF_UNIQUE_ID): cv.string,
     vol.Optional(CONF_VALVES): vol.All([CONFIG_VALVES]),
     vol.Optional(CONF_SENSOR): cv.entity_id,
-    vol.Optional(CONF_CONTROL): cv.entity_id,
-    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_BOOST_TEMP): vol.Coerce(float),
     vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
 })
 
@@ -106,12 +72,6 @@ CONFIG_ZONE = vol.Schema({
     vol.Optional(CONF_UNIQUE_ID): cv.string,
     vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
     vol.Required(CONF_SUBZONES): vol.All([CONFIG_SUBZONE]),
-    vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
-    vol.Optional(CONF_BOOST_TEMP): vol.Coerce(float),
     vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
 })
 
@@ -120,24 +80,11 @@ CONFIG_SCHEMA = vol.Schema({
             vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
             vol.Required(CONF_ZONES): vol.All([CONFIG_ZONE]),
             vol.Optional(CONF_ENABLED): cv.boolean,
-            vol.Optional(CONF_ACTIVE_TEMP): vol.Coerce(float),
-            vol.Optional(CONF_AWAY_TEMP): vol.Coerce(float),
-            vol.Optional(CONF_VACATION_TEMP): vol.Coerce(float),
-            vol.Optional(CONF_NIGHT_TEMP): vol.Coerce(float),
-            vol.Optional(CONF_OFF_TEMP): vol.Coerce(float),
-            vol.Optional(CONF_BOOST_TEMP): vol.Coerce(float),
             vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
         })
     },
     extra = vol.ALLOW_EXTRA,
 )
-
-
-def remove_platform_name(str):
-    for tag in ['sensor', 'switch', 'input_number', 'input_boolean']:
-        if str.startswith(f"{tag}."):
-            return str[len(tag) + 1:]
-    return str
 
 
 STARTUP_MESSAGE = f"""

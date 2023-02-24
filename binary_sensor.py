@@ -19,4 +19,5 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback, ) -> None:
     zonemaster = hass.data[DOMAIN][config_entry.entry_id]
     binary_sensors = [i for i in zonemaster.entities if isinstance(i, BinarySensorEntity)]
+    #_LOGGER.info(f"Binary sensors: {binary_sensors}")
     async_add_entities(binary_sensors)

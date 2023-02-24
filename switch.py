@@ -19,4 +19,5 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, config_entry: ConfigEntry, async_add_entities: AddEntitiesCallback, ) -> None:
     zonemaster = hass.data[DOMAIN][config_entry.entry_id]
     switches = [i for i in zonemaster.entities if isinstance(i, SwitchEntity)]
+    #_LOGGER.info(f"Switches: {switches}")
     async_add_entities(switches)

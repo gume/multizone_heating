@@ -14,6 +14,7 @@ from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
 from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
+from homeassistant.components.climate.const import SERVICE_SET_PRESET_MODE
 from homeassistant.util import slugify
 
 from .multizones import ZoneMaster
@@ -23,7 +24,6 @@ from .const import (
     CONF_IMPORT,
     CONF_ZONES,
     CONFIG_SCHEMA,
-    SERVICE_SUBZONE_PRESET_MODE,
 )
 
 PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN, BINARY_SENSOR_DOMAIN ]
@@ -86,20 +86,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
-    @callback
-    async def async_subzone_preset_mode(call: ServiceCall) -> None:
-        _LOGGER.debug('Received data')
-        _LOGGER.debug(call.data)
-        result = await zonemaster.async_call(SERVICE_SUBZONE_PRESET_MODE, call)
-
-    hass.services.async_register(DOMAIN, SERVICE_SUBZONE_PRESET_MODE, async_subzone_preset_mode)
-
     return True
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
-    _LOGGER.debug("Unload entry")
-    _LOGGER.debug(entry)
+    _LOGGER.debug(f"Unload entry: {entry}")
     # This is called when an entry/configured device is to be removed. The class
     # needs to unload itself, and remove callbacks. See the classes for further
     # details
