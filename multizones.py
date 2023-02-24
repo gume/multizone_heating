@@ -291,6 +291,10 @@ class SubZone(BaseZone):
                 self._actuators[valve.name] = (valve, STATE_ON)
                 self._entities.append(valve)
 
+    """ SubZone sensor chnages (like temperature change) """
+    async def async_sensor_change(self, name, state):
+        pass
+
     """ Turn on heating in subzone """
     async def async_turn_on(self, **kwargs):  # pylint: disable=unused-argument
 
