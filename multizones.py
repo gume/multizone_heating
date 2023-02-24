@@ -281,7 +281,6 @@ class SubZone(BaseZone):
         self._entities.append(self._switch)
 
         """ Switch """
-        _LOGGER.debug(f"d1: {self.name} {self._presets[CONF_BOOST_TIME]}")
         self._boost = SubZoneBoostSwitch(self, self._presets[CONF_BOOST_TIME])
         self._entities.append(self._boost)
 

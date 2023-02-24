@@ -44,6 +44,7 @@ multizone_heating:
       pumps:
         - entity_id: switch.pumpmf
           keep_alive: 15
+          keep_active: 500
       subzones:
         - name: Kitchen
           sensor: input_number.kitchen_temp
