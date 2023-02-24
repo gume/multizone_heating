@@ -38,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 class BaseZone(BinarySensorEntity):
 
-    def __init__(self, hass: HomeAssistant, parent, name: str) -> None:
+    def __init__(self, hass: HomeAssistant, parent, config: dict, name: str) -> None:
 
         self._entities = []     # Entity names that should be added to hass
         self._sensors = {}      # sensors, eg. temperature sensor. Key: name, item: (sensor object, state)
@@ -63,19 +63,18 @@ class BaseZone(BinarySensorEntity):
         self._entities.append(self)
         self._zonename = name     # Name of the zone
 
-    """ Read preset values from config """
-    """ If there is no entry in the config, then use the parent's config """
-    async def async_read_presets(self, config):
+        """ read config presets """
+        """ If there is no entry in the config, then use the parent's config """
         for cp in PRESET_DEFAULTS.keys():
             if cp in config:
-                """ Try to read from the config file """
+                """ Try to read from the config file (Now it is just for floats)"""
                 try:
                     self._presets[cp] = float(config[cp])
                 except:
                     _LOGGER.warn(f"{self.name} Wrong config for preset {cp}: {config[cp]}")
             else:
                 """ If there is no entry in the config file, maybe the parent already has this value """
-                if self.parent is not None and cp in self.parent.preset:
+                if self.parent is not None and cp in self.parent.presets:
                     self._presets[cp] = self.parent.presets[cp]
 
     """ Service call. Should be passed to the zonemaster, but dispatched this way """
@@ -193,7 +192,7 @@ class BaseZone(BinarySensorEntity):
 class ZoneMaster(BaseZone):
 
     def __init__(self, hass: HomeAssistant, config: dict) -> None:
-        super().__init__(hass, None, CONF_MAIN)
+        super().__init__(hass, None, config, CONF_MAIN)
 
         self._attr_is_on = False
 
@@ -207,10 +206,6 @@ class ZoneMaster(BaseZone):
         self._enabled = True
         if CONF_ENABLED in config:
             self._enabled = config[CONF_ENABLED]
-
-        """ Read preset values """
-        self.async_read_presets(config)
-        #_LOGGER.debug(f"{self.name} presets: {self._presets}")
 
         for cz in config[CONF_ZONES]:
             zone = Zone(self.hass, self, cz)
@@ -227,7 +222,7 @@ class Zone(BaseZone):
 
     def __init__(self, hass: HomeAssistant, parent, config: dict) -> None:
 
-        super().__init__(hass, parent, config[CONF_NAME])
+        super().__init__(hass, parent, config, config[CONF_NAME])
 
         """ State is for heating on/off """
         self._attr_is_on = False
@@ -239,9 +234,6 @@ class Zone(BaseZone):
             "model": NAME,
             "manufacturer": MANUFACTURER,
         })
-
-        """ Read preset values """
-        self.async_read_presets(config)
 
         for csz in config[CONF_SUBZONES]:
             subzone = SubZone(self.hass, self, csz)
@@ -260,7 +252,7 @@ class SubZone(BaseZone):
 
     def __init__(self, hass: HomeAssistant, parent, config: dict) -> None:
 
-        super().__init__(hass, parent, f"{parent.zonename}_{config[CONF_NAME]}")
+        super().__init__(hass, parent, config, f"{parent.zonename}_{config[CONF_NAME]}")
 
         self._attr_icon = "mdi:radiator-disabled"
         self._attr_available = True
@@ -268,9 +260,7 @@ class SubZone(BaseZone):
         self._attr_is_on = False
         self._enabled = parent.enabled
 
-        """ Read preset values """
-        self.async_read_presets(config)
-        """ use dafault values for missing entries """
+        """ use dafault values for missing preset entries """
         for dk, dv in PRESET_DEFAULTS.items():
             if not dk in self._presets:
                 self._presets[dk] = dv
@@ -291,6 +281,7 @@ class SubZone(BaseZone):
         self._entities.append(self._switch)
 
         """ Switch """
+        _LOGGER.debug(f"d1: {self.name} {self._presets[CONF_BOOST_TIME]}")
         self._boost = SubZoneBoostSwitch(self, self._presets[CONF_BOOST_TIME])
         self._entities.append(self._boost)
 

@@ -26,7 +26,6 @@ multizone_heating:
     - entity_id: switch.mainheater
   zones:
     - name: "Zone TF"
-      away_temp: 16
       pumps:
         - entity_id: switch.pumptf
           keep_active: 45
@@ -36,21 +35,18 @@ multizone_heating:
           valves:
             - switch: switch.trv_aa_1
             - switch: switch.trv_aa_2
-          control: climate.test_thermostat
         - name: David
           sensor: input_number.david_temp
           valves:
             - switch: switch.trv_david_1
-          control: climate.david
-          active_temp: 24.5
+          boost_time: 30
     - name: "zone MF"
       pumps:
         - entity_id: switch.pumpmf
-          keep_alive: 5
+          keep_alive: 15
       subzones:
         - name: Kitchen
           sensor: input_number.kitchen_temp
-          control: climate.kitchen
 
 input_boolean:
   mainheater:

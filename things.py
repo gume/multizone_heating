@@ -47,7 +47,7 @@ class Pump(BinarySensorEntity):
         self._switch = config[CONF_ENTITY_ID]
 
         self._attr_name = slugify(f"{parent.zonename}_{remove_platform_name(self._switch)}")
-        self._attr_unique_id = slugify(f"{DOMAIN}_{self.name}")
+        self._attr_unique_id = slugify(f"{DOMAIN}_{self.name}_pump")
         self._device_name = self.name
         self._attr_device_info = parent.device_info
         self._icon = { STATE_ON: "mdi:pump", STATE_OFF: "mdi:pump-off"}
@@ -63,7 +63,7 @@ class Pump(BinarySensorEntity):
 
         """ Keep active keeps circulation for a time period """
         self._keep_active = 0   # Should be in seconds
-        self._later = None  # _later is a function for keeping active state
+        self._active = None  # _later is a function for keeping active state
         if CONF_KEEP_ACTIVE in config:
             try:
                 if config[CONF_KEEP_ACTIVE] is not None:
@@ -72,7 +72,7 @@ class Pump(BinarySensorEntity):
                 _LOGGER.warning(f"keep_active input :{config[CONF_KEEP_ACTIVE]}: is wrong for {self._switch}")
 
         """ Keep alive repeat the on (off?) state peridically """
-        self._keeo_alive = 0    # Should be in seconds
+        self._keep_alive = 0    # Should be in seconds
         if CONF_KEEP_ALIVE in config:
             try:
                 if config[CONF_KEEP_ALIVE] is not None:
@@ -84,6 +84,10 @@ class Pump(BinarySensorEntity):
         self._attr_extra_state_attributes[ATTR_ACTIVE] = False
 
         self._listen = async_track_state_change_event(self.hass, [self._switch], self.async_switch_state_change_event)
+
+        if self._keep_alive > 0:
+            _LOGGER.info(f"Keep alive for {self.name} started at interval {self._keep_alive}")
+            self._alive = async_call_later(self.hass, self._keep_alive, self.async_keep_alive)
 
     async def async_switch_state_change_event(self, event):
         _LOGGER.info(f"{self.name} switch change {event.data}")
@@ -121,9 +125,9 @@ class Pump(BinarySensorEntity):
         self.async_write_ha_state()
 
     async def async_clear_active(self):
-        if self._later != None:
-            self._later() # Cancel old event
-            self._later = None
+        if self._active != None:
+            self._active() # Cancel old event
+            self._active = None
         
         self._attr_extra_state_attributes[ATTR_ACTIVE] = False
         if ATTR_ACTIVE_START in self._attr_extra_state_attributes:
@@ -165,13 +169,24 @@ class Pump(BinarySensorEntity):
             return await self.async_turn_off_now(dt_util.utcnow())
 
         """ Set turn off call at a later time """
-        if self._later != None:
-            self._later() # Cancel old event
-        self._later = async_call_later(self.hass, activetime_s, self.async_turn_off_now)
+        if self._active != None:
+            self._active() # Cancel old event
+        self._active = async_call_later(self.hass, activetime_s, self.async_turn_off_now)
         self._attr_extra_state_attributes[ATTR_ACTIVE] = True
         self._attr_extra_state_attributes[ATTR_ACTIVE_START] = dt_util.utcnow()
         self._attr_extra_state_attributes[ATTR_ACTIVE_END] = dt_util.utcnow() + datetime.timedelta(seconds=activetime_s)
         self.async_write_ha_state()
+
+    async def async_keep_alive(self, _):
+        self._alive()
+        self._alive = async_call_later(self.hass, self._keep_alive, self.async_keep_alive)
+
+        if self._enabled and self._active == None:
+            turn = SERVICE_TURN_ON if self.is_on else SERVICE_TURN_OFF
+            _LOGGER.info(f"Keep switch: {self._switch} in state {turn}")
+            await self.hass.services.async_call(SWITCH_DOMAIN, turn, {CONF_ENTITY_ID: self._switch})
+        else:
+            _LOGGER.debug(f"Keep alive skipped for switch: {self._switch}")
 
 
 """ Valve is like a Pump, but starts with open state """
@@ -179,6 +194,8 @@ class Valve(Pump):
 
     def __init__(self, parent, enabled, config):
         super().__init__(parent, enabled, config)
+
+        self._attr_unique_id = slugify(f"{DOMAIN}_{self.name}_valve")
 
         self._attr_device_class = BinarySensorDeviceClass.OPENING
         self._attr_is_on = True    # Valve starts with on

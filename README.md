@@ -15,8 +15,10 @@ SubZone provides a switch that turns on/off the heating for the given subzone. T
 thermostat should be connected to this switch. Usually it is a climate control.
 Valves may have keep_active and keep_alive times set.
 
-SubZone may connect a thermometer, but currently there is no function for this. This is for future functions.
+SubZone provides a boost switch, which turns on the heeating for a given subzone for a given time. Default boost
+time can be changed. After the timeout, the boost switch turns off automatically.
 
+SubZone may connect a thermometer, but currently there is no function for this. This is for future functions.
 
 Issues:
 - Active time on pumps and valves can be interrupted manually. This could be considered as a feature..
