@@ -84,7 +84,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     zonemaster = ZoneMaster(hass, entry.data)
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
 
-    hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    for p in PLATFORMS:
+        hass.async_create_task(
+            hass.config_entries.async_forward_entry_setup(entry, p)
+        )
+    #hass.config_entries.async_setup_platforms(entry, PLATFORMS)
 
     return True
 
