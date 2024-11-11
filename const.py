@@ -75,7 +75,7 @@ CONFIG_ZONES = vol.Schema({
 
 CONFIG_SCHEMA = vol.Schema({
     DOMAIN: vol.Schema({
-        vol.Required(CONF_PUMPS): vol.All([CONFIG_PUMPS]),
+        vol.Required(CONF_SWITCH): cv.string,
         vol.Required(CONF_ZONES): vol.All([CONFIG_ZONES]),
         vol.Optional(CONF_ENABLED): cv.boolean,
         vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
