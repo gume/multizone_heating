@@ -41,9 +41,9 @@ CONF_BOOST_TIME = "boost_time"
 #PRESET_DEFAULTS = { CONF_BOOST_TIME: 15 * 1 }
 PRESET_DEFAULTS = { CONF_BOOST_TIME: 15 * 60 }
 
-ATTR_ACTIVE = "active"
-ATTR_ACTIVE_START = "active_start"
-ATTR_ACTIVE_END = "active_end"
+ATTR_POSTACTIVE = "postactive"
+ATTR_POSTACTIVE_START = "postactive_start"
+ATTR_POSTACTIVE_END = "postactive_end"
 ATTR_BOOST = "boost"
 ATTR_BOOST_START = "boost_start"
 ATTR_BOOST_END = "boost_end"
@@ -62,7 +62,6 @@ CONFIG_VALVES = vol.Schema({
 CONFIG_PUMPS = vol.Schema({
 #    vol.Required(CONF_ENTITY_ID): cv.entity_domain([SWITCH_DOMAIN]),
     vol.Required(CONF_ENTITY_ID): cv.string,
-    vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.string),
 })
 
 CONFIG_ZONES = vol.Schema({
@@ -80,6 +79,7 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Optional(CONF_ENABLED): cv.boolean,
         vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
         vol.Optional(CONF_KEEP_ALIVE): vol.Any(None, vol.Coerce(float)),
+        vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.string),
     })
     },
     extra = vol.ALLOW_EXTRA,
