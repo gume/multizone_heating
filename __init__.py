@@ -26,7 +26,7 @@ from .const import (
     CONFIG_SCHEMA,
 )
 
-PLATFORMS = [ SWITCH_DOMAIN, SENSOR_DOMAIN, BINARY_SENSOR_DOMAIN ]
+PLATFORMS = [ SWITCH_DOMAIN, BINARY_SENSOR_DOMAIN ]
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -81,7 +81,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
-    zonemaster = ZoneMaster(hass, entry.data)
+    zonemaster = ZoneMaster(hass, entry.data, "Master")
     hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
 
     for p in PLATFORMS:

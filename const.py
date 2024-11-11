@@ -5,6 +5,7 @@ from datetime import timedelta
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
+from homeassistant.components.valve import DOMAIN as VALVE_DOMAIN
 
 
 """Constants for multizone_keating."""
@@ -20,13 +21,17 @@ MANUFACTURER = "Gume"
 
 # Configuration and options
 CONF_ZONES = "zones"
-CONF_SUBZONES = "subzones"
-CONF_SENSOR = "sensor"
 CONF_SWITCH = "switch"
 CONF_VALVES = "valves"
+CONF_VALVE = "valve"
 CONF_PUMPS = "pumps"
 CONF_KEEP_ALIVE = "keep_alive"
 CONF_KEEP_ACTIVE = "keep_active"
+CONF_ENABLED = "enabled"
+CONF_UNIQUE_ID = "unique_id"
+CONF_ENTITY_ID = "entity_id"
+CONF_NAME = "name"
+
 
 CONF_IMPORT = "import_id"
 CONF_MAIN = "Main Controller"
@@ -48,44 +53,37 @@ DEFAULT_NAME = DOMAIN
 
 
 CONFIG_VALVES = vol.Schema({
-    vol.Required(CONF_ENTITY_ID): cv.entity_id,
+    #vol.Optional(CONF_SWITCH): cv.entity_domain([SWITCH_DOMAIN]),
+    #vol.Optional(CONF_VALVE): cv.entity_domain([VALVE_DOMAIN]),
+    vol.Optional(CONF_SWITCH): cv.string,
+    vol.Optional(CONF_VALVE): cv.string,
 })
 
-CONFIG_SUBZONE = vol.Schema({
-    vol.Required(CONF_NAME): cv.string,
-    vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Optional(CONF_VALVES): vol.All([CONFIG_VALVES]),
-    vol.Optional(CONF_SENSOR): cv.entity_id,
-    vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
-})
-
-CONFIG_TARGET_SWITCH = vol.Schema({
-    vol.Required(CONF_ENTITY_ID): cv.entity_domain([SWITCH_DOMAIN]),
-#    vol.Optional(CONF_KEEP_ALIVE, default=None): vol.Any(None, cv.positive_time_period, cv.positive_timedelta),
-    vol.Optional(CONF_KEEP_ALIVE, default=None): vol.Any(None, cv.string),
-#    vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.positive_time_period, cv.positive_timedelta),
+CONFIG_PUMPS = vol.Schema({
+#    vol.Required(CONF_ENTITY_ID): cv.entity_domain([SWITCH_DOMAIN]),
+    vol.Required(CONF_ENTITY_ID): cv.string,
     vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.string),
 })
 
-CONFIG_ZONE = vol.Schema({
+CONFIG_ZONES = vol.Schema({
     vol.Required(CONF_NAME): cv.string,
     vol.Optional(CONF_UNIQUE_ID): cv.string,
-    vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
-    vol.Required(CONF_SUBZONES): vol.All([CONFIG_SUBZONE]),
+    vol.Optional(CONF_PUMPS): vol.All([CONFIG_PUMPS]),
+    vol.Optional(CONF_VALVES): vol.All([CONF_VALVES]),
     vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
-})
+}, extra=vol.ALLOW_EXTRA)
 
 CONFIG_SCHEMA = vol.Schema({
-        DOMAIN: vol.Schema({
-            vol.Required(CONF_PUMPS): vol.All([CONFIG_TARGET_SWITCH]),
-            vol.Required(CONF_ZONES): vol.All([CONFIG_ZONE]),
-            vol.Optional(CONF_ENABLED): cv.boolean,
-            vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
-        })
+    DOMAIN: vol.Schema({
+        vol.Required(CONF_PUMPS): vol.All([CONFIG_PUMPS]),
+        vol.Required(CONF_ZONES): vol.All([CONFIG_ZONES]),
+        vol.Optional(CONF_ENABLED): cv.boolean,
+        vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
+        vol.Optional(CONF_KEEP_ALIVE): vol.Any(None, vol.Coerce(float)),
+    })
     },
     extra = vol.ALLOW_EXTRA,
 )
-
 
 STARTUP_MESSAGE = f"""
 -------------------------------------------------------------------
