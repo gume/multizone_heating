@@ -7,7 +7,8 @@
   "issue_tracker": "https://github.com/gume/multizone_heating/issues",
   "version": "0.1.0",
   "config_flow": false,
-  "codeowners": [
-    "@Gume"
-  ]
+  "codeowners": ["@Gume"],
+  "requirements": [],
+  "dependencies": [],
+  "loggers": ["custom_components.multizone_heating"]
 }
