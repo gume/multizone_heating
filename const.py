@@ -31,6 +31,7 @@ CONF_ENABLED = "enabled"
 CONF_UNIQUE_ID = "unique_id"
 CONF_ENTITY_ID = "entity_id"
 CONF_NAME = "name"
+CONF_TIMEOUT = "timeout"
 
 
 CONF_IMPORT = "import_id"
@@ -51,6 +52,10 @@ ATTR_BOOST_END = "boost_end"
 # Defaults
 DEFAULT_NAME = DOMAIN
 
+CONFIG_KEEP_ALIVE = vol.Schema({
+    vol.Optional(CONF_TIMEOUT): vol.Coerce(int),
+    vol.Optional(CONF_ENTITY_ID): cv.string,
+})
 
 CONFIG_VALVES = vol.Schema({
     #vol.Optional(CONF_SWITCH): cv.entity_domain([SWITCH_DOMAIN]),
@@ -77,9 +82,9 @@ CONFIG_SCHEMA = vol.Schema({
         vol.Required(CONF_SWITCH): cv.string,
         vol.Required(CONF_ZONES): vol.All([CONFIG_ZONES]),
         vol.Optional(CONF_ENABLED): cv.boolean,
-        vol.Optional(CONF_BOOST_TIME): vol.Coerce(float),
-        vol.Optional(CONF_KEEP_ALIVE): vol.Any(None, vol.Coerce(float)),
-        vol.Optional(CONF_KEEP_ACTIVE, default=None): vol.Any(None, cv.string),
+        vol.Optional(CONF_BOOST_TIME): vol.Coerce(int),
+        vol.Optional(CONF_KEEP_ALIVE): vol.All(CONFIG_KEEP_ALIVE),
+        vol.Optional(CONF_KEEP_ACTIVE): vol.Coerce(int),
     })
     },
     extra = vol.ALLOW_EXTRA,

@@ -141,7 +141,14 @@ class ZoneMaster(BinarySensorEntity):
         self.rooms = []
         self.master_switch = None
 
-        self.keep_alive = int(config.get("keep_alive")) if "keep_alive" in config else None
+        self.keep_alive_timeout = None
+        self.keep_alive_entity = None
+        self.keep_alive_timer = None
+        if "keep_alive" in config:
+            ka = config.get("keep_alive")
+            self.keep_alive_timeout = int(ka.get("timeout")) if "timeout" in ka else None
+            self.keep_alive_entity = ka.get("entity_id") if "entity_id" in ka else None
+
         self.entities = [self]
 
         self.laststate = set() # Rooms, where the heating is on
@@ -221,6 +228,11 @@ class ZoneMaster(BinarySensorEntity):
 
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""
+        # Maintain the state of the master switch
+        if self.keep_alive_timeout is not None and self.keep_alive_entity is not None:
+            self.keep_alive_timer = async_call_later(self._hass, self.keep_alive_timeout, self.keep_alive)
+
+        # Turn off the master switch, at the beginning
         if self.master_switch:
             self._hass.async_create_task(
                 self._hass.services.async_call("switch", "turn_off", {"entity_id": self.master_switch})
@@ -235,6 +247,15 @@ class ZoneMaster(BinarySensorEntity):
 
         self.postactive_pumps = set()
         self.postactive = False
+
+    async def keep_alive(self, _):
+        _LOGGER.error("Keep alive")
+        if self.keep_alive_entity is not None:
+            if self.keep_alive_entity.startswith("button."):
+                self._hass.async_create_task(
+                    self._hass.services.async_call("button", "press", {"entity_id": self.keep_alive_entity})
+                )
+        self.keep_alive_timer = async_call_later(self._hass, self.keep_alive_timeout, self.keep_alive)
 
     def adjust(self):
         _LOGGER.error("Adjusting")
