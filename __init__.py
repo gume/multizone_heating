@@ -5,14 +5,13 @@ import voluptuous as vol
 import hashlib
 
 
-from homeassistant.core import Config, HomeAssistant, ServiceCall, callback
+from homeassistant.core import HomeAssistant
 from homeassistant.config_entries import SOURCE_IMPORT, ConfigEntry
 from homeassistant.helpers.typing import ConfigType
 from homeassistant.exceptions import ConfigEntryNotReady
 import homeassistant.helpers.config_validation as cv
 from homeassistant.const import CONF_NAME, CONF_UNIQUE_ID, CONF_ENTITY_ID, CONF_ENABLED
 from homeassistant.components.switch import DOMAIN as SWITCH_DOMAIN
-from homeassistant.components.sensor import DOMAIN as SENSOR_DOMAIN
 from homeassistant.components.binary_sensor import DOMAIN as BINARY_SENSOR_DOMAIN
 from homeassistant.components.climate.const import SERVICE_SET_PRESET_MODE
 from homeassistant.util import slugify
@@ -21,6 +20,7 @@ from .multizones import ZoneMaster
 
 from .const import (
     DOMAIN,
+    STARTUP_MESSAGE,
     CONF_IMPORT,
     CONF_ZONES,
     CONFIG_SCHEMA,
@@ -82,13 +82,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     zonemaster = ZoneMaster(hass, entry.data, "Master")
-    hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
-
-    for p in PLATFORMS:
-        hass.async_create_task(
-            hass.config_entries.async_forward_entry_setup(entry, p)
-        )
-    #hass.config_entries.async_setup_platforms(entry, PLATFORMS)
+    if hass.data.get(DOMAIN) is None:
+        hass.data.setdefault(DOMAIN, {})[entry.entry_id] = zonemaster
+        _LOGGER.info(STARTUP_MESSAGE)
+    
+    await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     return True
 
