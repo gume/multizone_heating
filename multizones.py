@@ -33,7 +33,7 @@ class Pump(BinarySensorEntity):
         if name.startswith("switch."):
             name = name[7:]
         self._attr_name = slugify(name)
-        self._attr_unique_id = slugify(f"pump_feedback_{name}")
+        self._attr_unique_id = slugify(f"multizone_{master.name}_pumpfeedback_{name}")
 
         self._attr_is_on = False
         self._attr_device_class = BinarySensorDeviceClass.POWER
@@ -89,7 +89,7 @@ class Room(SwitchEntity):
         super().__init__()
 
         self._attr_name = slugify(name)
-        self._attr_unique_id = slugify(f"multizone_room_{name}")
+        self._attr_unique_id = slugify(f"multizone_{master.name}_room_{name}")
         self._attr_available = True
         self._attr_device_class = SwitchDeviceClass.SWITCH
         self._attr_is_on = False
@@ -102,7 +102,7 @@ class Room(SwitchEntity):
         self._master = master
         self.pumps = []
         self.valves = []
-        self.name = name
+        #self.name = name
 
     async def async_turn_on(self, **kwargs) -> None:
         self._attr_is_on = True
@@ -135,7 +135,7 @@ class ZoneMaster(BinarySensorEntity):
 
         self._attr_name = name
         self._attr_device_class = BinarySensorDeviceClass.HEAT
-        self._attr_unique_id = f"multizone_{name}"
+        self._attr_unique_id = f"multizone_zonemaster_{name}"
         self._attr_is_on = False
 
         self.rooms = []
@@ -315,11 +315,29 @@ class ZoneMaster(BinarySensorEntity):
                     p.turn_off()
                 else:
                     p.postactive()
-        # Turn valves on and off based on demand
-        for v, vt in vac.union(vls):
-            if v in vac and not v in vls:
-                self._hass.services.async_call(vt, "turn_on", {"entity_id": v})
-            elif v in vls and not v in vac:
-                self._hass.services.async_call(vt, "turn_off", {"entity_id": v})
+
+        # Turn valves on and off based on demand and pump state
+        # When the pump is off, there is no need to change the valve state
+        for r in self.rooms:
+            # When a singe pump is off, the circuit is not working
+            # Probably the last pump state would be enough
+            # Multiple pumps with different states could be an error!
+            _LOGGER.error("Valveset Room: %s", r.name)
+            doit = True
+            for p in r.pumps:
+                if not p in pac:
+                    doit = False
+                    break
+            _LOGGER.error(f"Valveset Doit: {doit}, state: {r in actual}")
+            if not doit:
+                continue
+            # Circuit is active, adjust the valves
+            for v, vt in r.valves:
+                if r in actual:
+                    _LOGGER.error(f"Valveset Turn on: {v}")
+                    self._hass.services.async_call(vt, "turn_on", {"entity_id": v})
+                else:
+                    _LOGGER.error(f"Valveset Turn off: {v}")
+                    self._hass.services.async_call(vt, "turn_off", {"entity_id": v})
 
         self.laststate = actual.copy()
