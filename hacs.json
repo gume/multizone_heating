@@ -1,5 +1,6 @@
 {
   "name": "Multizone heating",
   "hacs": "2.0.0",
-  "homeassistant": "2023.10.0"
+  "homeassistant": "2023.10.0",
+  "domain": "multizone_heating"
 }
