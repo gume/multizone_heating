@@ -1,0 +1,21 @@
+multizone_heating:
+  enabled: True
+  keep_alive:
+    entity_id: button.live
+    timeout: 15
+  keep_active: 45
+  switch: switch.mainheater
+  zones:
+    - name: "Zone 1"
+      pumps:
+        - entity_id: switch.pump1
+      zones:
+        - name: SZ_A
+        - name: SZ_B
+          valves:
+            - valve: valve.trv_1
+    - name: "zone 2"
+      pumps:
+        - entity_id: switch.pump2
+      zones:
+        - name: SZ_C

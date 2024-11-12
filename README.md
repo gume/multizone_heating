@@ -1,29 +1,21 @@
 # multizone_heating
 Multizone heating integration for Homeassistant
 
-ZoneMaster -> Zone -> SubZone
+ZoneMaster -> Zone -> Zone -> ...
 (Zone level might be multiplied)
 
-ZoneMaster and Zone have pumps that control the heat flow for the given branch (typically a whole floor)
-SubZone has valves that control the heat radiation for the given zone (typically a room)
+ZoneMaster has a switch, that controls the heating (on/off)
+Zones have pumps and valves. Pump run the hot water in the circuit (typically a whole floor), and valve opens/closes different sections (typically a room). The final zone on a circuit will be a room in multizone. This romm will provide a switch, which can be operated according to the heating demand.
 
-Pumps should be connected to a swicth entity.
-The switch may have an keep_active time, which will operate the pump longer after switching it off
-The switch may have a keep_alive time, which will repeat the switch command on a given interval
+Pumps should be connected to a swicth entity. Multizone controls them as a switch.
 
-SubZone provides a switch that turns on/off the heating for the given subzone. This is the input, the subzone
-thermostat should be connected to this switch. Usually it is a climate control.
-Valves may have keep_active and keep_alive times set.
+Multizone may have an keep_active time, which will operate the pump a bit longer after switching it off. Always the last circuit, before the main switch turn off will run longer.
+The main switch may have a keep_alive time, which will Keep the system alive (just like a watchdog). Currently this is a button. In the future it could be a service.
 
-SubZone provides a boost switch, which turns on the heeating for a given subzone for a given time. Default boost
-time can be changed. After the timeout, the boost switch turns off automatically.
-
-SubZone may connect a thermometer, but currently there is no function for this. This is for future functions.
-
-Issues:
-- Active time on pumps and valves can be interrupted manually. This could be considered as a feature..
+TBD:
+Final zones provides a boost switch, which turns on the heeating for a given room for a given time. Default boost
+time can be changed. After the timeout, the boost switch and the heating turns off automatically.
 
 ToDos:
 - Watchdog check on the whole system to avoid anomalies. Should be optionally disabled on a given branch.
-- Own thermostat with PID and external temperature read ?
-- Multiple subzone termometers
+- Force states of the pumps and valves
