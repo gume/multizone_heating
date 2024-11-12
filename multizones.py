@@ -18,6 +18,39 @@ from .const import DOMAIN, NAME, VERSION, MANUFACTURER, \
 _LOGGER = logging.getLogger(__name__)
 
 
+class Valve():
+
+    def __init__(self, name, master, valve_type) -> None:
+        self.master = master
+        self._hass = master._hass
+        self.name = name
+        self.valve_type = valve_type
+
+    def turn_on(self):
+        _LOGGER.debug(f"Valve {self.name} turn on")
+        if self.valve_type == "switch":
+            self._hass.async_create_task(
+                self._hass.services.async_call("switch", "turn_on", {"entity_id": self.name})
+            )
+        elif self.valve_type == "valve":
+            self._hass.async_create_task(
+                self._hass.services.async_call("valve", "open_valve", {"entity_id": self.name})
+            )
+
+    def turn_off(self):
+        _LOGGER.debug(f"Valve {self.name} turn off")
+        if self.valve_type == "switch":
+            self._hass.async_create_task(
+                self._hass.services.async_call("switch", "turn_off", {"entity_id": self.name})
+            )
+        elif self.valve_type == "valve":
+            self._hass.async_create_task(
+                self._hass.services.async_call("valve", "close_valve", {"entity_id": self.name})
+            )
+
+    def __str__(self):
+        return f"Valve(name={self.name}, valve_type={self.valve_type})"
+
 class Pump(BinarySensorEntity):
 
     should_poll = False
@@ -47,6 +80,7 @@ class Pump(BinarySensorEntity):
         self.turn_off()
 
     def turn_on(self):
+        _LOGGER.debug(f"Pump {self.name} turn on")
         self._hass.async_create_task(
             self._hass.services.async_call("switch", "turn_on", {"entity_id": self.switch})
         )
@@ -59,6 +93,7 @@ class Pump(BinarySensorEntity):
         self.async_write_ha_state()
         
     def turn_off(self):
+        _LOGGER.debug(f"Pump {self.name} turn off")
         self._hass.async_create_task(
             self._hass.services.async_call("switch", "turn_off", {"entity_id": self.switch})
         )
@@ -71,6 +106,7 @@ class Pump(BinarySensorEntity):
         self.async_write_ha_state()
 
     def postactive(self):
+        _LOGGER.debug(f"Pump {self.name} postactive")
         self._attr_extra_state_attributes[ATTR_POSTACTIVE] = True
         self._attr_extra_state_attributes[ATTR_POSTACTIVE_START] = datetime.datetime.now()
         self._attr_extra_state_attributes[ATTR_POSTACTIVE_END] = \
@@ -105,13 +141,17 @@ class Room(SwitchEntity):
         #self.name = name
 
     async def async_turn_on(self, **kwargs) -> None:
+        _LOGGER.debug(f"Room {self.name} turn on")
         self._attr_is_on = True
         self.async_write_ha_state()
+
         self._master.adjust()
 
     async def async_turn_off(self, **kwargs) -> None:
+        _LOGGER.debug(f"Room {self.name} turn off")
         self._attr_is_on = False
         self.async_write_ha_state()
+        
         self._master.adjust()
 
     def __str__(self):
@@ -146,7 +186,7 @@ class ZoneMaster(BinarySensorEntity):
         self.keep_alive_timer = None
         if "keep_alive" in config:
             ka = config.get("keep_alive")
-            self.keep_alive_timeout = int(ka.get("timeout")) if "timeout" in ka else None
+            self.keep_alive_timeout = int(ka.get("timeout")) * 60 if "timeout" in ka else None
             self.keep_alive_entity = ka.get("entity_id") if "entity_id" in ka else None
 
         self.entities = [self]
@@ -154,7 +194,7 @@ class ZoneMaster(BinarySensorEntity):
         self.laststate = set() # Rooms, where the heating is on
         
         self.postactive_pumps = set() # Pumps, which are kept on for a while
-        self.postactive_time = int(config.get("keep_active")) if "keep_active" in config else None
+        self.postactive_time = int(config.get("keep_active")) * 60 if "keep_active" in config else None
         self.postactive_timer = None
 
         def import_pumps(lconf: list):
@@ -178,12 +218,12 @@ class ZoneMaster(BinarySensorEntity):
                 e = conf.get("switch")
                 if e is None:
                     continue
-                valves.append((e, "switch"))
+                valves.append(Valve(e, self, "switch"))
             for conf in lconf:
                 e = conf.get("valve")
                 if e is None:
                     continue
-                valves.append((e, "valve"))
+                valves.append(Valve(e, self, "valve"))
             return valves
 
         def import_zone(lconf: list, pumps, valves):
@@ -203,19 +243,23 @@ class ZoneMaster(BinarySensorEntity):
                     room = Room(name, self)
                     room.pumps = new_pumps
                     room.valves = new_valves
+                    self.entities.append(room)
                     self.rooms.append(room)
 
-        _LOGGER.debug("ZoneMaster config: %s", config)
+        _LOGGER.info("ZoneMaster config: %s", config)
         self.master_switch = config.get("switch")
 
         import_zone([config], [], [])
 
+        _LOGGER.info("ZoneMaster params:")
+        _LOGGER.info("Master switch: %s", self.master_switch)
+        _LOGGER.info("Keep alive timeout: %s", self.keep_alive_timeout)
+        _LOGGER.info("Keep alive entity: %s", self.keep_alive_entity)
+        _LOGGER.info("Postactive time: %s", self.postactive_time)
         for r in self.rooms:
-            _LOGGER.debug("Room: %s", r.name)
-            _LOGGER.debug("Pumps: %s", r.pumps)
-            _LOGGER.debug("Valves: %s", r.valves)
-
-        self.entities.extend(self.rooms)
+            _LOGGER.info("Room: %s", r.name)
+            _LOGGER.info("Pumps: %s", r.pumps)
+            _LOGGER.info("Valves: %s", r.valves)
 
     @property
     def device_info(self):
@@ -226,6 +270,20 @@ class ZoneMaster(BinarySensorEntity):
             "manufacturer": MANUFACTURER,
         }
 
+    def turn_on(self):
+        _LOGGER.debug(f"Multizone master {self.name} turn on")
+        self._attr_is_on = True
+        self._hass.async_create_task(
+            self._hass.services.async_call("switch", "turn_on", {"entity_id": self.master_switch})
+        )
+
+    def turn_off(self):
+        _LOGGER.debug(f"Multizone master {self.name} turn off")
+        self._attr_is_on = False
+        self._hass.async_create_task(
+            self._hass.services.async_call("switch", "turn_off", {"entity_id": self.master_switch})
+        )
+
     async def async_added_to_hass(self):
         """Run when this Entity has been added to HA."""
         # Maintain the state of the master switch
@@ -233,15 +291,14 @@ class ZoneMaster(BinarySensorEntity):
             self.keep_alive_timer = async_call_later(self._hass, self.keep_alive_timeout, self.keep_alive)
 
         # Turn off the master switch, at the beginning
-        if self.master_switch:
-            self._hass.async_create_task(
-                self._hass.services.async_call("switch", "turn_off", {"entity_id": self.master_switch})
-            )
+        self.turn_off()
 
     async def postactive_stop(self, _):
         if self.postactive_timer is not None:
             self.postactive_timer() # Stop the timer
         
+        _LOGGER.debug("Postactive stop ends")
+        _LOGGER.debug("Postactive pumps: %s", self.postactive_pumps)
         for p in self.postactive_pumps:
             p.turn_off()
 
@@ -249,7 +306,7 @@ class ZoneMaster(BinarySensorEntity):
         self.postactive = False
 
     async def keep_alive(self, _):
-        _LOGGER.error("Keep alive")
+        _LOGGER.debug("Keep alive")
         if self.keep_alive_entity is not None:
             if self.keep_alive_entity.startswith("button."):
                 self._hass.async_create_task(
@@ -258,7 +315,7 @@ class ZoneMaster(BinarySensorEntity):
         self.keep_alive_timer = async_call_later(self._hass, self.keep_alive_timeout, self.keep_alive)
 
     def adjust(self):
-        _LOGGER.error("Adjusting")
+        _LOGGER.debug("Adjusting")
 
         def pumps_set(rooms):
             pumps = set()
@@ -286,20 +343,16 @@ class ZoneMaster(BinarySensorEntity):
 
         # Turn heating on and off basen on demand
         if not pls and pac:
-            self._attr_is_on = True
-            self._hass.async_create_task(
-                self._hass.services.async_call("switch", "turn_on", {"entity_id": self.master_switch})
-            )
+            self.turn_on()
+            # Handle postactive pumps
             self.postactive = False
             if self.postactive_timer is not None:
                 self.postactive_timer()
             pls = pls.union(self.postactive_pumps) # Add pumps, as if they are active
+            self.postactive_pumps = set() # Clear the postactive pumps, as they are added to working pumps
 
         elif pls and not pac:
-            self._attr_is_on = False
-            self._hass.async_create_task(
-                self._hass.services.async_call("switch", "turn_off", {"entity_id": self.master_switch})
-            )
+            self.turn_off()
             # When the main heating is truned off, the last pumps shpould be kept on for a while
             if self.postactive_time is not None:
                 self.postactive_pumps = pls.copy()
@@ -310,9 +363,13 @@ class ZoneMaster(BinarySensorEntity):
         for p in pac.union(pls):
             if p in pac and not p in pls:
                 p.turn_on()
+                if p in self.postactive_pumps:
+                    self.postactive_pumps.remove(p)
             elif p in pls and not p in pac:
                 if not self.postactive:
                     p.turn_off()
+                    if p in self.postactive_pumps:
+                        self.postactive_pumps.remove(p)
                 else:
                     p.postactive()
 
@@ -322,22 +379,19 @@ class ZoneMaster(BinarySensorEntity):
             # When a singe pump is off, the circuit is not working
             # Probably the last pump state would be enough
             # Multiple pumps with different states could be an error!
-            _LOGGER.error("Valveset Room: %s", r.name)
             doit = True
             for p in r.pumps:
                 if not p in pac:
                     doit = False
                     break
-            _LOGGER.error(f"Valveset Doit: {doit}, state: {r in actual}")
+            _LOGGER.debug(f"Valveset action: {doit}, state: {r in actual}")
             if not doit:
                 continue
             # Circuit is active, adjust the valves
-            for v, vt in r.valves:
+            for v in r.valves:
                 if r in actual:
-                    _LOGGER.error(f"Valveset Turn on: {v}")
-                    self._hass.services.async_call(vt, "turn_on", {"entity_id": v})
+                    v.turn_on()
                 else:
-                    _LOGGER.error(f"Valveset Turn off: {v}")
-                    self._hass.services.async_call(vt, "turn_off", {"entity_id": v})
+                    v.turn_off()
 
         self.laststate = actual.copy()
